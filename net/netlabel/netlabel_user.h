@@ -35,6 +35,7 @@
 #include <linux/skbuff.h>
 #include <linux/capability.h>
 #include <linux/audit.h>
+#include <linux/lsm.h>
 #include <net/netlink.h>
 #include <net/genetlink.h>
 #include <net/netlabel.h>

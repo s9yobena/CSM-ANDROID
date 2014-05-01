@@ -23,6 +23,7 @@
 #include <linux/types.h>
 #include <linux/timer.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/skbuff.h>
 #include <linux/errno.h>
 #include <linux/netlink.h>
@@ -294,8 +295,10 @@ ctnetlink_dump_secctx(struct sk_buff *skb, const struct nf_conn *ct)
 	struct nlattr *nest_secctx;
 	int len, ret;
 	char *secctx;
+	struct secids secid;
 
-	ret = security_secid_to_secctx(ct->secmark, &secctx, &len);
+	lsm_init_secid(&secid, ct->secmark, 0);
+	ret = security_secid_to_secctx(&secid, &secctx, &len);
 	if (ret)
 		return 0;
 
@@ -502,8 +505,10 @@ ctnetlink_secctx_size(const struct nf_conn *ct)
 {
 #ifdef CONFIG_NF_CONNTRACK_SECMARK
 	int len, ret;
+	struct secids secid;
 
-	ret = security_secid_to_secctx(ct->secmark, NULL, &len);
+	lsm_init_secid(&secid, ct->secmark, 0);
+	ret = security_secid_to_secctx(&secid, NULL, &len);
 	if (ret)
 		return 0;
 

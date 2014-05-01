@@ -61,6 +61,9 @@ extern unsigned int aa_g_path_max;
 /* Flag indicating whether initialization completed */
 extern int apparmor_initialized __initdata;
 
+extern struct security_operations apparmor_ops;
+
+
 /* fn's in lib */
 char *aa_split_fqname(char *args, char **ns_name);
 void aa_info_message(const char *str);

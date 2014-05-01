@@ -36,6 +36,7 @@
 #include <linux/skbuff.h>
 #include <linux/in.h>
 #include <linux/in6.h>
+#include <linux/lsm.h>
 #include <net/netlink.h>
 #include <net/request_sock.h>
 #include <linux/atomic.h>
@@ -109,7 +110,7 @@ struct cipso_v4_doi;
 
 /* NetLabel audit information */
 struct netlbl_audit {
-	u32 secid;
+        struct secids secid;
 	uid_t loginuid;
 	u32 sessionid;
 };
@@ -213,7 +214,7 @@ struct netlbl_lsm_secattr {
 			struct netlbl_lsm_secattr_catmap *cat;
 			u32 lvl;
 		} mls;
-		u32 secid;
+		struct secids secid;
 	} attr;
 };
 

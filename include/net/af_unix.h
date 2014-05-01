@@ -31,7 +31,7 @@ struct unix_skb_parms {
 	const struct cred	*cred;
 	struct scm_fp_list	*fp;		/* Passed files		*/
 #ifdef CONFIG_SECURITY_NETWORK
-	u32			secid;		/* Security ID		*/
+	struct secids		secid;		/* Security ID		*/
 #endif
 };
 

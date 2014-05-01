@@ -16,6 +16,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/integrity.h>
 #include <linux/ima.h>
 #include <linux/evm.h>
@@ -646,9 +647,12 @@ int security_inode_listsecurity(struct inode *inode, char *buffer, size_t buffer
 	return security_ops->inode_listsecurity(inode, buffer, buffer_size);
 }
 
-void security_inode_getsecid(const struct inode *inode, u32 *secid)
+void security_inode_getsecid(const struct inode *inode, struct secids *secid)
 {
-	security_ops->inode_getsecid(inode, secid);
+	u32 sid;
+
+	security_ops->inode_getsecid(inode, &sid);
+	lsm_init_secid(secid, sid, 0);
 }
 
 int security_file_permission(struct file *file, int mask)
@@ -762,9 +766,9 @@ void security_transfer_creds(struct cred *new, const struct cred *old)
 	security_ops->cred_transfer(new, old);
 }
 
-int security_kernel_act_as(struct cred *new, u32 secid)
+int security_kernel_act_as(struct cred *new, struct secids *secid)
 {
-	return security_ops->kernel_act_as(new, secid);
+	return security_ops->kernel_act_as(new, lsm_get_secid(secid, 0));
 }
 
 int security_kernel_create_files_as(struct cred *new, struct inode *inode)
@@ -798,9 +802,12 @@ int security_task_getsid(struct task_struct *p)
 	return security_ops->task_getsid(p);
 }
 
-void security_task_getsecid(struct task_struct *p, u32 *secid)
+void security_task_getsecid(struct task_struct *p, struct secids *secid)
 {
-	security_ops->task_getsecid(p, secid);
+	u32 sid;
+
+	security_ops->task_getsecid(p, &sid);
+	lsm_init_secid(secid, sid, 0);
 }
 EXPORT_SYMBOL(security_task_getsecid);
 
@@ -841,9 +848,9 @@ int security_task_movememory(struct task_struct *p)
 }
 
 int security_task_kill(struct task_struct *p, struct siginfo *info,
-			int sig, u32 secid)
+			int sig, struct secids *secid)
 {
-	return security_ops->task_kill(p, info, sig, secid);
+	return security_ops->task_kill(p, info, sig, lsm_get_secid(secid, 0));
 }
 
 int security_task_wait(struct task_struct *p)
@@ -867,9 +874,12 @@ int security_ipc_permission(struct kern_ipc_perm *ipcp, short flag)
 	return security_ops->ipc_permission(ipcp, flag);
 }
 
-void security_ipc_getsecid(struct kern_ipc_perm *ipcp, u32 *secid)
+void security_ipc_getsecid(struct kern_ipc_perm *ipcp, struct secids *secid)
 {
-	security_ops->ipc_getsecid(ipcp, secid);
+	u32 sid;
+
+	security_ops->ipc_getsecid(ipcp, &sid);
+	lsm_init_secid(secid, sid, 0);
 }
 
 int security_msg_msg_alloc(struct msg_msg *msg)
@@ -988,15 +998,22 @@ int security_netlink_send(struct sock *sk, struct sk_buff *skb)
 	return security_ops->netlink_send(sk, skb);
 }
 
-int security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen)
+int security_secid_to_secctx(struct secids *secid, char **secdata, u32 *seclen)
 {
-	return security_ops->secid_to_secctx(secid, secdata, seclen);
+	return security_ops->secid_to_secctx(lsm_get_secid(secid, 0),
+						secdata, seclen);
 }
 EXPORT_SYMBOL(security_secid_to_secctx);
 
-int security_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid)
+int security_secctx_to_secid(const char *secdata, u32 seclen,
+				struct secids *secid)
 {
-	return security_ops->secctx_to_secid(secdata, seclen, secid);
+	u32 sid;
+	int rc;
+
+	rc = security_ops->secctx_to_secid(secdata, seclen, &sid);
+	lsm_init_secid(secid, sid, 0);
+	return rc;
 }
 EXPORT_SYMBOL(security_secctx_to_secid);
 
@@ -1118,9 +1135,15 @@ int security_socket_getpeersec_stream(struct socket *sock, char __user *optval,
 	return security_ops->socket_getpeersec_stream(sock, optval, optlen, len);
 }
 
-int security_socket_getpeersec_dgram(struct socket *sock, struct sk_buff *skb, u32 *secid)
+int security_socket_getpeersec_dgram(struct socket *sock, struct sk_buff *skb,
+					struct secids *secid)
 {
-	return security_ops->socket_getpeersec_dgram(sock, skb, secid);
+	u32 sid;
+	int rc;
+
+	rc = security_ops->socket_getpeersec_dgram(sock, skb, &sid);
+	lsm_init_secid(secid, sid, 0);
+	return rc;
 }
 EXPORT_SYMBOL(security_socket_getpeersec_dgram);
 
@@ -1177,9 +1200,9 @@ void security_inet_conn_established(struct sock *sk,
 	security_ops->inet_conn_established(sk, skb);
 }
 
-int security_secmark_relabel_packet(u32 secid)
+int security_secmark_relabel_packet(struct secids *secid)
 {
-	return security_ops->secmark_relabel_packet(secid);
+	return security_ops->secmark_relabel_packet(lsm_get_secid(secid, 0));
 }
 EXPORT_SYMBOL(security_secmark_relabel_packet);
 
@@ -1269,7 +1292,8 @@ void security_xfrm_state_free(struct xfrm_state *x)
 	security_ops->xfrm_state_free_security(x);
 }
 
-int security_xfrm_policy_lookup(struct xfrm_sec_ctx *ctx, u32 fl_secid, u8 dir)
+int security_xfrm_policy_lookup(struct xfrm_sec_ctx *ctx,
+				u32 fl_secid, u8 dir)
 {
 	return security_ops->xfrm_policy_lookup(ctx, fl_secid, dir);
 }
@@ -1339,10 +1363,11 @@ void security_audit_rule_free(void *lsmrule)
 	security_ops->audit_rule_free(lsmrule);
 }
 
-int security_audit_rule_match(u32 secid, u32 field, u32 op, void *lsmrule,
-			      struct audit_context *actx)
+int security_audit_rule_match(struct secids *secid, u32 field, u32 op,
+			      void *lsmrule, struct audit_context *actx)
 {
-	return security_ops->audit_rule_match(secid, field, op, lsmrule, actx);
+	return security_ops->audit_rule_match(lsm_get_secid(secid, 0), field,
+						op, lsmrule, actx);
 }
 
 #endif /* CONFIG_AUDIT */

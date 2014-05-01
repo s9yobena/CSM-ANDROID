@@ -46,6 +46,7 @@
 #include <linux/cdev.h>
 #include <linux/notifier.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/user_namespace.h>
 #include <asm/uaccess.h>
 #include <asm/byteorder.h>
@@ -72,7 +73,7 @@ struct dev_state {
 	const struct cred *cred;
 	void __user *disccontext;
 	unsigned long ifclaimed;
-	u32 secid;
+	struct secids secid;
 	u32 disabled_bulk_eps;
 };
 
@@ -88,7 +89,7 @@ struct async {
 	struct urb *urb;
 	unsigned int mem_usage;
 	int status;
-	u32 secid;
+	struct secids secid;
 	u8 bulk_addr;
 	u8 bulk_status;
 };
@@ -434,10 +435,11 @@ static void async_completed(struct urb *urb)
 	struct dev_state *ps = as->ps;
 	struct siginfo sinfo;
 	struct pid *pid = NULL;
-	u32 secid = 0;
+	struct secids secid;
 	const struct cred *cred = NULL;
 	int signr;
 
+	lsm_init_secid(&secid, 0, 0);
 	spin_lock(&ps->lock);
 	list_move_tail(&as->asynclist, &ps->async_completed);
 	as->status = urb->status;
@@ -462,7 +464,8 @@ static void async_completed(struct urb *urb)
 	spin_unlock(&ps->lock);
 
 	if (signr) {
-		kill_pid_info_as_cred(sinfo.si_signo, &sinfo, pid, cred, secid);
+		kill_pid_info_as_cred(sinfo.si_signo, &sinfo, pid, cred,
+					&secid);
 		put_pid(pid);
 		put_cred(cred);
 	}
@@ -2057,7 +2060,7 @@ static void usbdev_remove(struct usb_device *udev)
 			sinfo.si_code = SI_ASYNCIO;
 			sinfo.si_addr = ps->disccontext;
 			kill_pid_info_as_cred(ps->discsignr, &sinfo,
-					ps->disc_pid, ps->cred, ps->secid);
+					ps->disc_pid, ps->cred, &ps->secid);
 		}
 	}
 }

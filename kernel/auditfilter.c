@@ -1245,7 +1245,7 @@ static int audit_filter_user_rules(struct netlink_skb_parms *cb,
 	for (i = 0; i < rule->field_count; i++) {
 		struct audit_field *f = &rule->fields[i];
 		int result = 0;
-		u32 sid;
+		struct secids sid;
 
 		switch (f->type) {
 		case AUDIT_PID:
@@ -1268,7 +1268,7 @@ static int audit_filter_user_rules(struct netlink_skb_parms *cb,
 		case AUDIT_SUBJ_CLR:
 			if (f->lsm_rule) {
 				security_task_getsecid(current, &sid);
-				result = security_audit_rule_match(sid,
+				result = security_audit_rule_match(&sid,
 								   f->type,
 								   f->op,
 								   f->lsm_rule,

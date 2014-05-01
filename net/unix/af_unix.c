@@ -128,12 +128,16 @@ static atomic_long_t unix_nr_socks;
 #ifdef CONFIG_SECURITY_NETWORK
 static void unix_get_secdata(struct scm_cookie *scm, struct sk_buff *skb)
 {
-	memcpy(UNIXSID(skb), &scm->secid, sizeof(u32));
+	struct secids *skb_secid = UNIXSID(skb);
+
+	*skb_secid = scm->secid;
 }
 
 static inline void unix_set_secdata(struct scm_cookie *scm, struct sk_buff *skb)
 {
-	scm->secid = *UNIXSID(skb);
+	struct secids *skb_secid = UNIXSID(skb);
+
+	scm->secid = *skb_secid;
 }
 #else
 static inline void unix_get_secdata(struct scm_cookie *scm, struct sk_buff *skb)
