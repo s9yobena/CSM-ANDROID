@@ -596,7 +596,7 @@ static int xfrm_add_sa(struct sk_buff *skb, struct nlmsghdr *nlh,
 		err = xfrm_state_update(x);
 
 	security_task_getsecid(current, &sids);
-	sid = lsm_get_secid(&sids, 0);
+	sid = lsm_get_secid(&sids, lsm_xfrm_order());
 	xfrm_audit_state_add(x, err ? 0 : 1, loginuid, sessionid, sid);
 
 	if (err < 0) {
@@ -686,7 +686,7 @@ static int xfrm_del_sa(struct sk_buff *skb, struct nlmsghdr *nlh,
 
 out:
 	security_task_getsecid(current, &sids);
-	sid = lsm_get_secid(&sids, 0);
+	sid = lsm_get_secid(&sids, lsm_xfrm_order());
 	xfrm_audit_state_delete(x, err ? 0 : 1, loginuid, sessionid, sid);
 	xfrm_state_put(x);
 	return err;
@@ -1377,7 +1377,7 @@ static int xfrm_add_policy(struct sk_buff *skb, struct nlmsghdr *nlh,
 	excl = nlh->nlmsg_type == XFRM_MSG_NEWPOLICY;
 	err = xfrm_policy_insert(p->dir, xp, excl);
 	security_task_getsecid(current, &sids);
-	sid = lsm_get_secid(&sids, 0);
+	sid = lsm_get_secid(&sids, lsm_xfrm_order());
 	xfrm_audit_policy_add(xp, err ? 0 : 1, loginuid, sessionid, sid);
 
 	if (err) {
@@ -1620,7 +1620,7 @@ static int xfrm_get_policy(struct sk_buff *skb, struct nlmsghdr *nlh,
 		struct secids sids;
 
 		security_task_getsecid(current, &sids);
-		sid = lsm_get_secid(&sids, 0);
+		sid = lsm_get_secid(&sids, lsm_xfrm_order());
 		xfrm_audit_policy_delete(xp, err ? 0 : 1, loginuid, sessionid,
 					 sid);
 
@@ -1652,7 +1652,7 @@ static int xfrm_flush_sa(struct sk_buff *skb, struct nlmsghdr *nlh,
 	audit_info.loginuid = audit_get_loginuid(current);
 	audit_info.sessionid = audit_get_sessionid(current);
 	security_task_getsecid(current, &secid);
-	audit_info.secid = lsm_get_secid(&secid, 0);
+	audit_info.secid = lsm_get_secid(&secid, lsm_xfrm_order());
 	err = xfrm_state_flush(net, p->proto, &audit_info);
 	if (err) {
 		if (err == -ESRCH) /* empty table */
@@ -1836,7 +1836,7 @@ static int xfrm_flush_policy(struct sk_buff *skb, struct nlmsghdr *nlh,
 	audit_info.loginuid = audit_get_loginuid(current);
 	audit_info.sessionid = audit_get_sessionid(current);
 	security_task_getsecid(current, &secid);
-	audit_info.secid = lsm_get_secid(&secid, 0);
+	audit_info.secid = lsm_get_secid(&secid, lsm_xfrm_order());
 	err = xfrm_policy_flush(net, type, &audit_info);
 	if (err) {
 		if (err == -ESRCH) /* empty table */
@@ -1909,7 +1909,7 @@ static int xfrm_add_pol_expire(struct sk_buff *skb, struct nlmsghdr *nlh,
 		struct secids sids;
 
 		security_task_getsecid(current, &sids);
-		sid = lsm_get_secid(&sids, 0);
+		sid = lsm_get_secid(&sids, lsm_xfrm_order());
 		xfrm_policy_delete(xp, p->dir);
 		xfrm_audit_policy_delete(xp, 1, loginuid, sessionid, sid);
 
@@ -1954,7 +1954,7 @@ static int xfrm_add_sa_expire(struct sk_buff *skb, struct nlmsghdr *nlh,
 		struct secids sids;
 
 		security_task_getsecid(current, &sids);
-		sid = lsm_get_secid(&sids, 0);
+		sid = lsm_get_secid(&sids, lsm_xfrm_order());
 		__xfrm_state_delete(x);
 		xfrm_audit_state_delete(x, 1, loginuid, sessionid, sid);
 	}

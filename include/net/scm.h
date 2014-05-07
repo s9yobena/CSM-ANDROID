@@ -86,13 +86,16 @@ static inline void scm_passec(struct socket *sock, struct msghdr *msg, struct sc
 	char *secdata;
 	u32 seclen;
 	int err;
+	struct security_operations *sop;
 
 	if (test_bit(SOCK_PASSSEC, &sock->flags)) {
-		err = security_secid_to_secctx(&scm->secid, &secdata, &seclen);
+		err = security_secid_to_secctx(&scm->secid, &secdata,
+						&seclen, &sop);
 
 		if (!err) {
-			put_cmsg(msg, SOL_SOCKET, SCM_SECURITY, seclen, secdata);
-			security_release_secctx(secdata, seclen);
+			put_cmsg(msg, SOL_SOCKET, SCM_SECURITY, seclen,
+					secdata);
+			security_release_secctx(secdata, seclen, sop);
 		}
 	}
 }

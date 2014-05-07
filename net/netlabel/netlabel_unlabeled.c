@@ -397,6 +397,7 @@ int netlbl_unlhsh_add(struct net *net,
 	struct secids secids;
 	char *secctx = NULL;
 	u32 secctx_len;
+	struct security_operations *sop;
 
 	if (addr_len != sizeof(struct in_addr) &&
 	    addr_len != sizeof(struct in6_addr))
@@ -462,9 +463,9 @@ unlhsh_add_return:
 		lsm_init_secid(&secids, secid, 0);
 		if (security_secid_to_secctx(&secids,
 					     &secctx,
-					     &secctx_len) == 0) {
+					     &secctx_len, &sop) == 0) {
 			audit_log_format(audit_buf, " sec_obj=%s", secctx);
-			security_release_secctx(secctx, secctx_len);
+			security_release_secctx(secctx, secctx_len, sop);
 		}
 		audit_log_format(audit_buf, " res=%u", ret_val == 0 ? 1 : 0);
 		audit_log_end(audit_buf);
@@ -497,6 +498,7 @@ static int netlbl_unlhsh_remove_addr4(struct net *net,
 	struct net_device *dev;
 	char *secctx;
 	u32 secctx_len;
+	struct security_operations *sop;
 
 	spin_lock(&netlbl_unlhsh_lock);
 	list_entry = netlbl_af4list_remove(addr->s_addr, mask->s_addr,
@@ -518,9 +520,9 @@ static int netlbl_unlhsh_remove_addr4(struct net *net,
 			dev_put(dev);
 		if (entry != NULL &&
 		    security_secid_to_secctx(&entry->secid,
-					     &secctx, &secctx_len) == 0) {
+					     &secctx, &secctx_len, &sop) == 0) {
 			audit_log_format(audit_buf, " sec_obj=%s", secctx);
-			security_release_secctx(secctx, secctx_len);
+			security_release_secctx(secctx, secctx_len, sop);
 		}
 		audit_log_format(audit_buf, " res=%u", entry != NULL ? 1 : 0);
 		audit_log_end(audit_buf);
@@ -559,6 +561,7 @@ static int netlbl_unlhsh_remove_addr6(struct net *net,
 	struct net_device *dev;
 	char *secctx;
 	u32 secctx_len;
+	struct security_operations *sop;
 
 	spin_lock(&netlbl_unlhsh_lock);
 	list_entry = netlbl_af6list_remove(addr, mask, &iface->addr6_list);
@@ -579,9 +582,9 @@ static int netlbl_unlhsh_remove_addr6(struct net *net,
 			dev_put(dev);
 		if (entry != NULL &&
 		    security_secid_to_secctx(&entry->secid,
-					     &secctx, &secctx_len) == 0) {
+					     &secctx, &secctx_len, &sop) == 0) {
 			audit_log_format(audit_buf, " sec_obj=%s", secctx);
-			security_release_secctx(secctx, secctx_len);
+			security_release_secctx(secctx, secctx_len, sop);
 		}
 		audit_log_format(audit_buf, " res=%u", entry != NULL ? 1 : 0);
 		audit_log_end(audit_buf);
@@ -928,13 +931,13 @@ static int netlbl_unlabel_staticadd(struct sk_buff *skb,
 	ret_val = security_secctx_to_secid(
 		                  nla_data(info->attrs[NLBL_UNLABEL_A_SECCTX]),
 				  nla_len(info->attrs[NLBL_UNLABEL_A_SECCTX]),
-				  &secid);
+				  &secid, lsm_netlbl_ops());
 	if (ret_val != 0)
 		return ret_val;
 
 	return netlbl_unlhsh_add(&init_net,
 				 dev_name, addr, mask, addr_len,
-				 lsm_get_secid(&secid, 0),
+				 lsm_get_secid(&secid, lsm_netlbl_order()),
 				 &audit_info);
 }
 
@@ -978,13 +981,13 @@ static int netlbl_unlabel_staticadddef(struct sk_buff *skb,
 	ret_val = security_secctx_to_secid(
 		                  nla_data(info->attrs[NLBL_UNLABEL_A_SECCTX]),
 				  nla_len(info->attrs[NLBL_UNLABEL_A_SECCTX]),
-				  &secid);
+				  &secid, lsm_netlbl_ops());
 	if (ret_val != 0)
 		return ret_val;
 
 	return netlbl_unlhsh_add(&init_net,
 				 NULL, addr, mask, addr_len,
-				 lsm_get_secid(&secid, 0),
+				 lsm_get_secid(&secid, lsm_netlbl_order()),
 				 &audit_info);
 }
 
@@ -1099,6 +1102,7 @@ static int netlbl_unlabel_staticlist_gen(u32 cmd,
 	struct secids *secid;
 	char *secctx;
 	u32 secctx_len;
+	struct security_operations *sop;
 
 	data = genlmsg_put(cb_arg->skb, NETLINK_CB(cb_arg->nl_cb->skb).pid,
 			   cb_arg->seq, &netlbl_unlabel_gnl_family,
@@ -1157,14 +1161,14 @@ static int netlbl_unlabel_staticlist_gen(u32 cmd,
 		secid = &addr6->secid;
 	}
 
-	ret_val = security_secid_to_secctx(secid, &secctx, &secctx_len);
+	ret_val = security_secid_to_secctx(secid, &secctx, &secctx_len, &sop);
 	if (ret_val != 0)
 		goto list_cb_failure;
 	ret_val = nla_put(cb_arg->skb,
 			  NLBL_UNLABEL_A_SECCTX,
 			  secctx_len,
 			  secctx);
-	security_release_secctx(secctx, secctx_len);
+	security_release_secctx(secctx, secctx_len, sop);
 	if (ret_val != 0)
 		goto list_cb_failure;
 

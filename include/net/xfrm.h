@@ -688,13 +688,15 @@ static inline void xfrm_audit_helper_usrinfo(uid_t auid, u32 ses, u32 secid,
 	char *secctx;
 	u32 secctx_len;
 	struct secids secids;
+	struct security_operations *sop;
 
 	audit_log_format(audit_buf, " auid=%u ses=%u", auid, ses);
 	lsm_init_secid(&secids, secid, 0);
 	if (secid != 0 &&
-	    security_secid_to_secctx(&secids, &secctx, &secctx_len) == 0) {
+	    security_secid_to_secctx(&secids, &secctx, &secctx_len,
+				     &sop) == 0) {
 		audit_log_format(audit_buf, " subj=%s", secctx);
-		security_release_secctx(secctx, secctx_len);
+		security_release_secctx(secctx, secctx_len, sop);
 	} else
 		audit_log_task_context(audit_buf);
 }

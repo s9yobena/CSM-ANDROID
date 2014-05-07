@@ -1061,6 +1061,7 @@ static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
 				  int res)
 {
 	struct audit_buffer *ab;
+	struct security_operations *sop;
 
 	if (!audit_enabled)
 		return;
@@ -1072,11 +1073,11 @@ static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
 	if (sid) {
 		char *ctx = NULL;
 		u32 len;
-		if (security_secid_to_secctx(sid, &ctx, &len))
+		if (security_secid_to_secctx(sid, &ctx, &len, &sop))
 			audit_log_format(ab, " ssid=%u", sid);
 		else {
 			audit_log_format(ab, " subj=%s", ctx);
-			security_release_secctx(ctx, len);
+			security_release_secctx(ctx, len, sop);
 		}
 	}
 	audit_log_format(ab, " op=");

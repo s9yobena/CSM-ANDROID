@@ -1570,7 +1570,8 @@ static int cipso_v4_gentag_loc(const struct cipso_v4_doi *doi_def,
 
 	buffer[0] = CIPSO_V4_TAG_LOCAL;
 	buffer[1] = CIPSO_V4_TAG_LOC_BLEN;
-	*(u32 *)&buffer[2] = lsm_get_secid(&secattr->attr.secid, 0);
+	*(u32 *)&buffer[2] = lsm_get_secid(&secattr->attr.secid,
+						lsm_netlbl_order());
 
 	return CIPSO_V4_TAG_LOC_BLEN;
 }

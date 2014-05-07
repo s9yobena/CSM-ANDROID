@@ -1136,12 +1136,13 @@ void audit_log_task_context(struct audit_buffer *ab)
 	unsigned len;
 	int error;
 	u32 sid;
+	struct security_operation *sop;
 
 	security_task_getsecid(current, &sid);
 	if (!sid)
 		return;
 
-	error = security_secid_to_secctx(sid, &ctx, &len);
+	error = security_secid_to_secctx(sid, &ctx, &len, &sop);
 	if (error) {
 		if (error != -EINVAL)
 			goto error_path;
@@ -1149,7 +1150,7 @@ void audit_log_task_context(struct audit_buffer *ab)
 	}
 
 	audit_log_format(ab, " subj=%s", ctx);
-	security_release_secctx(ctx, len);
+	security_release_secctx(ctx, len, sop);
 	return;
 
 error_path:
@@ -1196,6 +1197,7 @@ static int audit_log_pid_context(struct audit_context *context, pid_t pid,
 	char *ctx = NULL;
 	u32 len;
 	int rc = 0;
+	struct security_operations *sop;
 
 	ab = audit_log_start(context, GFP_KERNEL, AUDIT_OBJ_PID);
 	if (!ab)
@@ -1203,12 +1205,12 @@ static int audit_log_pid_context(struct audit_context *context, pid_t pid,
 
 	audit_log_format(ab, "opid=%d oauid=%d ouid=%d oses=%d", pid, auid,
 			 uid, sessionid);
-	if (security_secid_to_secctx(sid, &ctx, &len)) {
+	if (security_secid_to_secctx(sid, &ctx, &len, &sop)) {
 		audit_log_format(ab, " obj=(none)");
 		rc = 1;
 	} else {
 		audit_log_format(ab, " obj=%s", ctx);
-		security_release_secctx(ctx, len);
+		security_release_secctx(ctx, len, sop);
 	}
 	audit_log_format(ab, " ocomm=");
 	audit_log_untrustedstring(ab, comm);
@@ -1456,12 +1458,13 @@ static void show_special(struct audit_context *context, int *call_panic)
 		if (!lsm_zero_secid(osid)) {
 			char *ctx = NULL;
 			u32 len;
-			if (security_secid_to_secctx(osid, &ctx, &len)) {
+			struct security_operations *sop;
+			if (security_secid_to_secctx(osid, &ctx, &len, &sop)) {
 				audit_log_format(ab, " osc=%u", osid->si_count);
 				*call_panic = 1;
 			} else {
 				audit_log_format(ab, " obj=%s", ctx);
-				security_release_secctx(ctx, len);
+				security_release_secctx(ctx, len, sop);
 			}
 		}
 		if (context->ipc.has_perm) {
@@ -1530,6 +1533,7 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
 			   int record_num, int *call_panic)
 {
 	struct audit_buffer *ab;
+	struct security_operations *sop;
 	ab = audit_log_start(context, GFP_KERNEL, AUDIT_PATH);
 	if (!ab)
 		return; /* audit_panic has been called */
@@ -1574,12 +1578,12 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
 		char *ctx = NULL;
 		u32 len;
 		if (security_secid_to_secctx(
-			&n->osid, &ctx, &len)) {
+					     &n->osid, &ctx, &len, &sop)) {
 			audit_log_format(ab, " osid=%u", n->osid.si_count);
 			*call_panic = 2;
 		} else {
 			audit_log_format(ab, " obj=%s", ctx);
-			security_release_secctx(ctx, len);
+			security_release_secctx(ctx, len, sop);
 		}
 	}
 

@@ -353,9 +353,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 		bprm->file->f_path.dentry->d_inode->i_mode
 	};
 	const char *name = NULL, *target = NULL, *info = NULL;
-	int error = cap_bprm_set_creds(bprm);
-	if (error)
-		return error;
+	int error;
 
 	if (bprm->cred_prepared)
 		return 0;
@@ -524,15 +522,12 @@ cleanup:
  */
 int apparmor_bprm_secureexec(struct linux_binprm *bprm)
 {
-	int ret = cap_bprm_secureexec(bprm);
-
 	/* the decision to use secure exec is computed in set_creds
 	 * and stored in bprm->unsafe.
 	 */
-	if (!ret && (bprm->unsafe & AA_SECURE_X_NEEDED))
-		ret = 1;
-
-	return ret;
+	if (bprm->unsafe & AA_SECURE_X_NEEDED)
+		return 1;
+	return 0;
 }
 
 /**

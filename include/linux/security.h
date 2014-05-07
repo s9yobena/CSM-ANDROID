@@ -1756,7 +1756,9 @@ int security_inode_listxattr(struct dentry *dentry);
 int security_inode_removexattr(struct dentry *dentry, const char *name);
 int security_inode_need_killpriv(struct dentry *dentry);
 int security_inode_killpriv(struct dentry *dentry);
-int security_inode_getsecurity(const struct inode *inode, const char *name, void **buffer, bool alloc);
+int security_inode_getsecurity(const struct inode *inode, const char *name,
+			       void **buffer, bool alloc,
+			       struct security_operations **sop);
 int security_inode_setsecurity(struct inode *inode, const char *name, const void *value, size_t size, int flags);
 int security_inode_listsecurity(struct inode *inode, char *buffer, size_t buffer_size);
 void security_inode_getsecid(const struct inode *inode, struct secids *secid);
@@ -1832,15 +1834,22 @@ void security_d_instantiate(struct dentry *dentry, struct inode *inode);
 int security_getprocattr(struct task_struct *p, char *name, char **value);
 int security_setprocattr(struct task_struct *p, char *name, void *value, size_t size);
 int security_netlink_send(struct sock *sk, struct sk_buff *skb);
-int security_secid_to_secctx(struct secids *secid, char **secdata, u32 *seclen);
+int security_secid_to_secctx(struct secids *secid, char **secdata, u32 *seclen,
+			     struct security_operations **secops);
 int security_secctx_to_secid(const char *secdata, u32 seclen,
-			     struct secids *secid);
-void security_release_secctx(char *secdata, u32 seclen);
+			     struct secids *secid,
+			     struct security_operations *secops);
+void security_release_secctx(char *secdata, u32 seclen,
+			     struct security_operations *secops);
 
 int security_inode_notifysecctx(struct inode *inode, void *ctx, u32 ctxlen);
 int security_inode_setsecctx(struct dentry *dentry, void *ctx, u32 ctxlen);
-int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen);
+int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen,
+			     struct security_operations **secops);
 #else /* CONFIG_SECURITY */
+struct security_operations {
+};
+
 struct security_mnt_opts {
 };
 
@@ -2184,7 +2193,10 @@ static inline int security_inode_killpriv(struct dentry *dentry)
 	return cap_inode_killpriv(dentry);
 }
 
-static inline int security_inode_getsecurity(const struct inode *inode, const char *name, void **buffer, bool alloc)
+static inline int security_inode_getsecurity(const struct inode *inode,
+					     const char *name, void **buffer,
+					     bool alloc,
+					     struct security_operations **sop)
 {
 	return -EOPNOTSUPP;
 }
@@ -2532,19 +2544,21 @@ static inline int security_netlink_send(struct sock *sk, struct sk_buff *skb)
 }
 
 static inline int security_secid_to_secctx(struct secids *secid,
-						char **secdata, u32 *seclen)
+					   char **secdata, u32 *seclen,
+					   struct security_operations **secops)
 {
 	return -EOPNOTSUPP;
 }
 
-static inline int security_secctx_to_secid(const char *secdata,
-					   u32 seclen,
-					   struct secids *secid)
+static inline int security_secctx_to_secid(const char *secdata, u32 seclen,
+					   struct secids *secid,
+				           struct security_operations *secops)
 {
 	return -EOPNOTSUPP;
 }
 
-static inline void security_release_secctx(char *secdata, u32 seclen)
+static inline void security_release_secctx(char *secdata, u32 seclen,
+					   struct security_operations *secops)
 {
 }
 
@@ -2556,7 +2570,9 @@ static inline int security_inode_setsecctx(struct dentry *dentry, void *ctx, u32
 {
 	return -EOPNOTSUPP;
 }
-static inline int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen)
+static inline int security_inode_getsecctx(struct inode *inode, void **ctx,
+					   u32 *ctxlen,
+					   struct security_operations **secops)
 {
 	return -EOPNOTSUPP;
 }

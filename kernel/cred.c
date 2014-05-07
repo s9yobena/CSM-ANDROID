@@ -728,16 +728,21 @@ EXPORT_SYMBOL(set_security_override);
  * @secctx: The LSM security context to generate the security ID from.
  *
  * Set the LSM security ID in a set of credentials so that the subjective
- * security is overridden when an alternative set of credentials is used.  The
- * security ID is specified in string form as a security context to be
+ * security is overridden when an alternative set of credentials is used.
+ * The security ID is specified in string form as a security context to be
  * interpreted by the LSM.
+ *
+ * The last parameter to security_secctx_to_secid() indicates which
+ * LSM should interpret the context string. NULL means that the LSM
+ * infrastructure may have to figure out for itself which LSM or set
+ * of LSMs should get called.
  */
 int set_security_override_from_ctx(struct cred *new, const char *secctx)
 {
 	struct secids secid;
 	int ret;
 
-	ret = security_secctx_to_secid(secctx, strlen(secctx), &secid);
+	ret = security_secctx_to_secid(secctx, strlen(secctx), &secid, NULL);
 	if (ret < 0)
 		return ret;
 

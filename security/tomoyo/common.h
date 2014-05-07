@@ -1218,7 +1218,7 @@ static inline struct tomoyo_domain_info *tomoyo_domain(void)
 static inline struct tomoyo_domain_info *tomoyo_real_domain(struct task_struct
 							    *task)
 {
-	return task_cred_xxx(task, security);
+	 return lsm_get_cred(__task_cred(task), &tomoyo_ops);
 }
 
 /**

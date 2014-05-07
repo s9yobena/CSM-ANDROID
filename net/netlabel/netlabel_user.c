@@ -101,6 +101,7 @@ struct audit_buffer *netlbl_audit_start_common(int type,
 	struct audit_buffer *audit_buf;
 	char *secctx;
 	u32 secctx_len;
+	struct security_operations *sop;
 
 	if (audit_enabled == 0)
 		return NULL;
@@ -116,9 +117,9 @@ struct audit_buffer *netlbl_audit_start_common(int type,
 	if (!lsm_zero_secid(&audit_info->secid) &&
 	    security_secid_to_secctx(&audit_info->secid,
 				     &secctx,
-				     &secctx_len) == 0) {
+				     &secctx_len, &sop) == 0) {
 		audit_log_format(audit_buf, " subj=%s", secctx);
-		security_release_secctx(secctx, secctx_len);
+		security_release_secctx(secctx, secctx_len, sop);
 	}
 
 	return audit_buf;

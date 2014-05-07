@@ -100,15 +100,16 @@ static int ct_show_secctx(struct seq_file *s, const struct nf_conn *ct)
 	u32 len;
 	char *secctx;
 	struct secids secid;
+	struct security_operations *sop;
 
 	lsm_init_secid(&secid, ct->secmark, 0);
-	ret = security_secid_to_secctx(&secid, &secctx, &len);
+	ret = security_secid_to_secctx(&secid, &secctx, &len, &sop);
 	if (ret)
 		return 0;
 
 	ret = seq_printf(s, "secctx=%s ", secctx);
 
-	security_release_secctx(secctx, len);
+	security_release_secctx(secctx, len, sop);
 	return ret;
 }
 #else

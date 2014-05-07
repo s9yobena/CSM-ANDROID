@@ -296,9 +296,10 @@ ctnetlink_dump_secctx(struct sk_buff *skb, const struct nf_conn *ct)
 	int len, ret;
 	char *secctx;
 	struct secids secid;
+	struct security_operations *sop;
 
 	lsm_init_secid(&secid, ct->secmark, 0);
-	ret = security_secid_to_secctx(&secid, &secctx, &len);
+	ret = security_secid_to_secctx(&secid, &secctx, &len, &sop);
 	if (ret)
 		return 0;
 
@@ -312,7 +313,7 @@ ctnetlink_dump_secctx(struct sk_buff *skb, const struct nf_conn *ct)
 
 	ret = 0;
 nla_put_failure:
-	security_release_secctx(secctx, len);
+	security_release_secctx(secctx, len, sop);
 	return ret;
 }
 #else
@@ -506,9 +507,10 @@ ctnetlink_secctx_size(const struct nf_conn *ct)
 #ifdef CONFIG_NF_CONNTRACK_SECMARK
 	int len, ret;
 	struct secids secid;
+	struct security_operations *sop;
 
 	lsm_init_secid(&secid, ct->secmark, 0);
-	ret = security_secid_to_secctx(&secid, NULL, &len);
+	ret = security_secid_to_secctx(&secid, NULL, &len, &sop);
 	if (ret)
 		return 0;
 
