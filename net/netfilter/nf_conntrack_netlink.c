@@ -298,7 +298,7 @@ ctnetlink_dump_secctx(struct sk_buff *skb, const struct nf_conn *ct)
 	struct secids secid;
 	struct security_operations *sop;
 
-	lsm_init_secid(&secid, ct->secmark, 0);
+	lsm_init_secid(&secid, ct->secmark, lsm_secmark_order());
 	ret = security_secid_to_secctx(&secid, &secctx, &len, &sop);
 	if (ret)
 		return 0;
@@ -509,7 +509,7 @@ ctnetlink_secctx_size(const struct nf_conn *ct)
 	struct secids secid;
 	struct security_operations *sop;
 
-	lsm_init_secid(&secid, ct->secmark, 0);
+	lsm_init_secid(&secid, ct->secmark, lsm_secmark_order());
 	ret = security_secid_to_secctx(&secid, NULL, &len, &sop);
 	if (ret)
 		return 0;

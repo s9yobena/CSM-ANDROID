@@ -149,6 +149,12 @@ struct request_sock;
 #define LSM_UNSAFE_PTRACE	2
 #define LSM_UNSAFE_PTRACE_CAP	4
 
+/* Unstackable features */
+#define LSM_FEATURE_PRESENT	0x1
+#define LSM_FEATURE_NETLABEL	0x2
+#define LSM_FEATURE_XFRM	0x4
+#define LSM_FEATURE_SECMARK	0x8
+
 #ifdef CONFIG_MMU
 extern int mmap_min_addr_handler(struct ctl_table *table, int write,
 				 void __user *buffer, size_t *lenp, loff_t *ppos);
@@ -200,6 +206,12 @@ static inline void security_free_mnt_opts(struct security_mnt_opts *opts)
  * @name:
  *	A string that acts as a unique identifier for the LSM with max number
  *	of characters = SECURITY_NAME_MAX.
+ * @order:
+ *     The numeric order in which this LSM will be invoked.
+ *     Set during LSM initialization. Used to identify
+ *     which security blob to use when there is more than one LSM.
+ * @features:
+ *     Indicates which of the unshared facilities this LSM supports.
  *
  * Security hooks for program execution operations.
  *
@@ -1390,6 +1402,8 @@ static inline void security_free_mnt_opts(struct security_mnt_opts *opts)
  */
 struct security_operations {
 	char name[SECURITY_NAME_MAX + 1];
+	int order;
+	int features;
 
 	int (*binder_set_context_mgr) (struct task_struct *mgr);
 	int (*binder_transaction) (struct task_struct *from, struct task_struct *to);

@@ -20,6 +20,7 @@
 #include <linux/init.h>
 #include <linux/namei.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/magic.h>
 
 static struct vfsmount *mount;
@@ -215,6 +216,66 @@ void securityfs_remove(struct dentry *dentry)
 }
 EXPORT_SYMBOL_GPL(securityfs_remove);
 
+#ifdef CONFIG_SECURITY
+static struct dentry *lsm_dentry;
+static ssize_t lsm_read(struct file *filp, char __user *buf, size_t count,
+			loff_t *ppos)
+{
+	struct security_operations *sop = lsm_present_ops();
+	char *data;
+	int len;
+
+	data = kzalloc(SECURITY_NAME_MAX + 1, GFP_KERNEL);
+	if (data == NULL)
+		return -ENOMEM;
+
+	strcat(data, sop->name);
+	strcat(data, "\n");
+	len = strlen(data);
+
+	len = simple_read_from_buffer(buf, count, ppos, data, len + 1);
+	kfree(data);
+
+	return len;
+}
+
+static const struct file_operations lsm_ops = {
+	.read = lsm_read,
+	.llseek = generic_file_llseek,
+};
+
+static struct dentry *present_dentry;
+static ssize_t present_read(struct file *filp, char __user *buf, size_t count,
+			loff_t *ppos)
+{
+	struct security_operations *sop = lsm_present_ops();
+	char *raw;
+	char *data;
+	int len;
+
+	if (sop)
+		raw = sop->name;
+	else
+		raw = "(none)";
+	len = strlen(raw);
+
+	data = kstrdup(raw, GFP_KERNEL);
+	if (data == NULL)
+		return -ENOMEM;
+
+	data[len] = '\n';
+	len = simple_read_from_buffer(buf, count, ppos, data, len + 1);
+	kfree(data);
+
+	return len;
+}
+
+static const struct file_operations presentfile_ops = {
+	.read = present_read,
+	.llseek = generic_file_llseek,
+};
+#endif /* CONFIG_SECURITY */
+
 static struct kobject *security_kobj;
 
 static int __init securityfs_init(void)
@@ -226,9 +287,17 @@ static int __init securityfs_init(void)
 		return -EINVAL;
 
 	retval = register_filesystem(&fs_type);
-	if (retval)
+	if (retval) {
 		kobject_put(security_kobj);
-	return retval;
+		return retval;
+	}
+#ifdef CONFIG_SECURITY
+	lsm_dentry = securityfs_create_file("lsm", S_IRUGO, NULL, NULL,
+							&lsm_ops);
+	present_dentry = securityfs_create_file("present", S_IRUGO, NULL, NULL,
+							&presentfile_ops);
+#endif /* CONFIG_SECURITY */
+	return 0;
 }
 
 core_initcall(securityfs_init);

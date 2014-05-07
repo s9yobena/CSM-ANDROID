@@ -164,9 +164,18 @@ static inline void lsm_init_secid(struct secids *secid, u32 lsecid, int order)
 {
 	memset(secid, 0, sizeof(*secid));
 
-	if (lsecid != 0)
+	if (lsecid == 0)
+		return;
+	/*
+	 * An order of -1 means set it for all LSMs.
+	 */
+	if (order < 0) {
+		secid->si_lsm[0] = lsecid;
+		secid->si_count++;
+	} else {
+		secid->si_lsm[order] = lsecid;
 		secid->si_count = 1;
-	secid->si_lsm[order] = lsecid;
+	}
 }
 
 static inline int lsm_zero_secid(struct secids *secid)
@@ -178,44 +187,74 @@ static inline int lsm_zero_secid(struct secids *secid)
 
 #ifdef CONFIG_SECURITY
 
+extern struct security_operations *present_ops;
 static inline struct security_operations *lsm_present_ops(void)
 {
-	return security_ops;
+	return present_ops;
 }
 
 static inline int lsm_present_order(void)
 {
-	return 0;
+	return present_ops->order;
 }
+
+#ifdef CONFIG_NETLABEL
+extern struct security_operations *netlbl_ops;
 
 static inline struct security_operations *lsm_netlbl_ops(void)
 {
-	return security_ops;
+	return netlbl_ops;
 }
 
 static inline int lsm_netlbl_order(void)
 {
-	return 0;
+	return netlbl_ops->order;
 }
+#endif /* CONFIG_NETLABEL */
+
+#ifdef CONFIG_SECURITY_NETWORK_XFRM
+extern struct security_operations *xfrm_ops;
 
 static inline struct security_operations *lsm_xfrm_ops(void)
 {
-	return security_ops;
+	return xfrm_ops;
 }
+
+static inline int lsm_xfrm_order(void)
+{
+	return xfrm_ops->order;
+}
+#endif /* CONFIG_SECURITY_NETWORK_XFRM */
+
+#ifdef CONFIG_NETWORK_SECMARK
+extern struct security_operations *secmark_ops;
+
+static inline struct security_operations *lsm_secmark_ops(void)
+{
+	return secmark_ops;
+}
+
+static inline int lsm_secmark_order(void)
+{
+	return secmark_ops->order;
+}
+#endif /* CONFIG_NETWORK_SECMARK */
+
+#else /* CONFIG_SECURITY */
 
 static inline int lsm_xfrm_order(void)
 {
 	return 0;
 }
 
-static inline struct security_operations *lsm_secmark_ops(void)
-{
-	return security_ops;
-}
-
 static inline int lsm_secmark_order(void)
 {
 	return 0;
+}
+
+static inline struct security_operations *lsm_secmark_ops(void)
+{
+	return NULL;
 }
 
 #endif /* CONFIG_SECURITY */

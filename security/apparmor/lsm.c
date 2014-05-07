@@ -612,6 +612,7 @@ static int apparmor_task_setrlimit(struct task_struct *task,
 
 struct security_operations apparmor_ops = {
 	.name =				"apparmor",
+	.features =			LSM_FEATURE_PRESENT,
 
 	.ptrace_access_check =		apparmor_ptrace_access_check,
 	.ptrace_traceme =		apparmor_ptrace_traceme,

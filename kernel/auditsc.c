@@ -1917,7 +1917,7 @@ void __audit_syscall_exit(int success, long return_code)
 		context->aux = NULL;
 		context->aux_pids = NULL;
 		context->target_pid = 0;
-		lsm_init_secid(&context->target_sid, 0, 0);
+		lsm_init_secid(&context->target_sid, 0, -1);
 		context->sockaddr_len = 0;
 		context->type = 0;
 		context->fds[0] = -1;

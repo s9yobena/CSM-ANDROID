@@ -4231,7 +4231,7 @@ static int selinux_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 		return selinux_sock_rcv_skb_compat(sk, skb, family);
 
 	secmark_active = selinux_secmark_enabled();
-	peerlbl_active = netlbl_enabled() || selinux_xfrm_enabled();
+	peerlbl_active = netlbl_enabled(&selinux_ops) || selinux_xfrm_enabled();
 	if (!secmark_active && !peerlbl_active)
 		return 0;
 
@@ -4586,7 +4586,7 @@ static unsigned int selinux_ip_forward(struct sk_buff *skb, int ifindex,
 		return NF_ACCEPT;
 
 	secmark_active = selinux_secmark_enabled();
-	netlbl_active = netlbl_enabled();
+	netlbl_active = netlbl_enabled(&selinux_ops);
 	peerlbl_active = netlbl_active || selinux_xfrm_enabled();
 	if (!secmark_active && !peerlbl_active)
 		return NF_ACCEPT;
@@ -4652,7 +4652,7 @@ static unsigned int selinux_ip_output(struct sk_buff *skb,
 {
 	u32 sid;
 
-	if (!netlbl_enabled())
+	if (!netlbl_enabled(&selinux_ops))
 		return NF_ACCEPT;
 
 	/* we do this in the LOCAL_OUT path and not the POST_ROUTING path
@@ -4744,7 +4744,7 @@ static unsigned int selinux_ip_postroute(struct sk_buff *skb, int ifindex,
 		return NF_ACCEPT;
 #endif
 	secmark_active = selinux_secmark_enabled();
-	peerlbl_active = netlbl_enabled() || selinux_xfrm_enabled();
+	peerlbl_active = netlbl_enabled(&selinux_ops) || selinux_xfrm_enabled();
 	if (!secmark_active && !peerlbl_active)
 		return NF_ACCEPT;
 
@@ -5563,6 +5563,10 @@ static int selinux_key_getsecurity(struct key *key, char **_buffer)
 
 struct security_operations selinux_ops = {
 	.name =				"selinux",
+	.features =			LSM_FEATURE_PRESENT |
+					LSM_FEATURE_NETLABEL |
+					LSM_FEATURE_XFRM |
+					LSM_FEATURE_SECMARK,
 
 	.binder_set_context_mgr =	selinux_binder_set_context_mgr,
 	.binder_transaction =		selinux_binder_transaction,

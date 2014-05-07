@@ -117,6 +117,7 @@ config SECURITY_NETWORK
 config SECURITY_NETWORK_XFRM
 	bool "XFRM (IPSec) Networking Security Hooks"
 	depends on XFRM && SECURITY_NETWORK
+	default y if AUDITSYSCALL
 	help
 	  This enables the XFRM (IPSec) networking security hooks.
 	  If enabled, a security module can use these hooks to

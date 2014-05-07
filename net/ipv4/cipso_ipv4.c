@@ -1594,7 +1594,7 @@ static int cipso_v4_parsetag_loc(const struct cipso_v4_doi *doi_def,
 	u32 secid;
 
 	secid = *(u32 *)&tag[2];
-	lsm_init_secid(&secattr->attr.secid, secid, 0);
+	lsm_init_secid(&secattr->attr.secid, secid, lsm_netlbl_order());
 	secattr->flags |= NETLBL_SECATTR_SECID;
 
 	return 0;

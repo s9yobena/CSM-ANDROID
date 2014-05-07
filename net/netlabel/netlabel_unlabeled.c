@@ -263,7 +263,7 @@ static int netlbl_unlhsh_add_addr4(struct netlbl_unlhsh_iface *iface,
 	entry->list.addr = addr->s_addr & mask->s_addr;
 	entry->list.mask = mask->s_addr;
 	entry->list.valid = 1;
-	lsm_init_secid(&entry->secid, secid, 0);
+	lsm_init_secid(&entry->secid, secid, lsm_netlbl_order());
 
 	spin_lock(&netlbl_unlhsh_lock);
 	ret_val = netlbl_af4list_add(&entry->list, &iface->addr4_list);
@@ -307,7 +307,7 @@ static int netlbl_unlhsh_add_addr6(struct netlbl_unlhsh_iface *iface,
 	entry->list.addr.s6_addr32[3] &= mask->s6_addr32[3];
 	entry->list.mask = *mask;
 	entry->list.valid = 1;
-	lsm_init_secid(&entry->secid, secid, 0);
+	lsm_init_secid(&entry->secid, secid, lsm_netlbl_order());
 
 	spin_lock(&netlbl_unlhsh_lock);
 	ret_val = netlbl_af6list_add(&entry->list, &iface->addr6_list);
@@ -460,7 +460,7 @@ int netlbl_unlhsh_add(struct net *net,
 unlhsh_add_return:
 	rcu_read_unlock();
 	if (audit_buf != NULL) {
-		lsm_init_secid(&secids, secid, 0);
+		lsm_init_secid(&secids, secid, lsm_netlbl_order());
 		if (security_secid_to_secctx(&secids,
 					     &secctx,
 					     &secctx_len, &sop) == 0) {
@@ -1099,7 +1099,7 @@ static int netlbl_unlabel_staticlist_gen(u32 cmd,
 	struct netlbl_unlhsh_walk_arg *cb_arg = arg;
 	struct net_device *dev;
 	void *data;
-	struct secids *secid;
+	const struct secids *secid;
 	char *secctx;
 	u32 secctx_len;
 	struct security_operations *sop;
@@ -1161,7 +1161,8 @@ static int netlbl_unlabel_staticlist_gen(u32 cmd,
 		secid = &addr6->secid;
 	}
 
-	ret_val = security_secid_to_secctx(secid, &secctx, &secctx_len, &sop);
+	ret_val = security_secid_to_secctx((struct secids *)secid, &secctx,
+						&secctx_len, &sop);
 	if (ret_val != 0)
 		goto list_cb_failure;
 	ret_val = nla_put(cb_arg->skb,

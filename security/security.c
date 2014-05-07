@@ -22,6 +22,9 @@
 #include <linux/evm.h>
 #include <linux/fsnotify.h>
 #include <net/flow.h>
+#ifdef CONFIG_NETLABEL
+#include <net/netlabel.h>
+#endif
 
 #define MAX_LSM_EVM_XATTR	2
 
@@ -29,7 +32,25 @@
 static __initdata char chosen_lsm[SECURITY_NAME_MAX + 1] =
 	CONFIG_DEFAULT_SECURITY;
 
+#ifdef CONFIG_SECURITY_NETWORK_XFRM
+struct security_operations *xfrm_ops;
+EXPORT_SYMBOL(xfrm_ops);
+#endif /* CONFIG_SECURITY_NETWORK_XFRM */
+#ifdef CONFIG_NETLABEL
+struct security_operations *netlbl_ops;
+#endif /* CONFIG_NETLABEL */
+#ifdef CONFIG_NETWORK_SECMARK
+struct security_operations *secmark_ops;
+EXPORT_SYMBOL(secmark_ops);
+#endif /* CONFIG_NETWORK_SECMARK */
+
 struct security_operations *security_ops;
+
+struct security_operations *present_ops;
+static int (*present_getprocattr)
+	(struct task_struct *p, char *name, char **value);
+static int (*present_setprocattr)
+	(struct task_struct *p, char *name, void *value, size_t size);
 EXPORT_SYMBOL(security_ops);
 
 static struct security_operations default_security_ops = {
@@ -62,11 +83,30 @@ static void __init do_security_initcalls(void)
  */
 int __init security_init(void)
 {
+#ifdef CONFIG_NETLABEL
+	int rc;
+#endif
+
 	printk(KERN_INFO "Security Framework initialized\n");
 
 	security_fixup_ops(&default_security_ops);
 	security_ops = &default_security_ops;
 	do_security_initcalls();
+
+	present_ops = security_ops;
+	present_getprocattr = present_ops->getprocattr;
+	present_setprocattr = present_ops->setprocattr;
+#ifdef CONFIG_SECURITY_NETWORK_XFRM
+	xfrm_ops = security_ops;
+#endif
+#ifdef CONFIG_NETLABEL
+	rc = netlbl_lsm_register(security_ops);
+	if (rc < 0)
+		printk(KERN_INFO "NetLabel registration error %d\n", -rc);
+#endif
+#ifdef CONFIG_NETWORK_SECMARK
+	secmark_ops = security_ops;
+#endif
 
 	return 0;
 }
@@ -700,7 +740,7 @@ void security_inode_getsecid(const struct inode *inode, struct secids *secid)
 	u32 sid;
 
 	security_ops->inode_getsecid(inode, &sid);
-	lsm_init_secid(secid, sid, 0);
+	lsm_init_secid(secid, sid, -1);
 }
 
 int security_file_permission(struct file *file, int mask)
@@ -859,7 +899,7 @@ void security_task_getsecid(struct task_struct *p, struct secids *secid)
 	u32 sid;
 
 	security_ops->task_getsecid(p, &sid);
-	lsm_init_secid(secid, sid, 0);
+	lsm_init_secid(secid, sid, -1);
 }
 EXPORT_SYMBOL(security_task_getsecid);
 
@@ -943,7 +983,7 @@ void security_ipc_getsecid(struct kern_ipc_perm *ipcp, struct secids *secid)
 	u32 sid;
 
 	security_ops->ipc_getsecid(ipcp, &sid);
-	lsm_init_secid(secid, sid, 0);
+	lsm_init_secid(secid, sid, -1);
 }
 
 int security_msg_msg_alloc(struct msg_msg *msg)
@@ -977,13 +1017,13 @@ int security_msg_queue_msgctl(struct msg_queue *msq, int cmd)
 }
 
 int security_msg_queue_msgsnd(struct msg_queue *msq,
-			       struct msg_msg *msg, int msqflg)
+			      struct msg_msg *msg, int msqflg)
 {
 	return security_ops->msg_queue_msgsnd(msq, msg, msqflg);
 }
 
 int security_msg_queue_msgrcv(struct msg_queue *msq, struct msg_msg *msg,
-			       struct task_struct *target, long type, int mode)
+			      struct task_struct *target, long type, int mode)
 {
 	return security_ops->msg_queue_msgrcv(msq, msg, target, type, mode);
 }
@@ -1049,12 +1089,70 @@ EXPORT_SYMBOL(security_d_instantiate);
 
 int security_getprocattr(struct task_struct *p, char *name, char **value)
 {
-	return security_ops->getprocattr(p, name, value);
+	struct security_operations *sop;
+	struct secids secid;
+	char *lsm;
+	int lsmlen;
+	int rc;
+
+	/*
+	 * Names will either be in the legacy form containing
+	 * no periods (".") or they will be the LSM name followed
+	 * by the legacy suffix. "current" or "selinux.current"
+	 * The exception is "context", which gets all of the LSMs.
+	 *
+	 * Legacy names are handled by the presenting LSM.
+	 * Suffixed names are handled by the named LSM.
+	 */
+	if (strcmp(name, "context") == 0) {
+		security_task_getsecid(p, &secid);
+		rc = security_secid_to_secctx(&secid, &lsm, &lsmlen, &sop);
+		if (rc == 0) {
+			*value = kstrdup(lsm, GFP_KERNEL);
+			if (*value == NULL)
+				rc = -ENOMEM;
+			else
+				rc = strlen(*value);
+			security_release_secctx(lsm, lsmlen, sop);
+		}
+		return rc;
+	}
+
+	if (present_ops && !strchr(name, '.'))
+		return present_getprocattr(p, name, value);
+
+	sop = security_ops;
+	lsm = sop->name;
+	lsmlen = strlen(lsm);
+	if (!strncmp(name, lsm, lsmlen) && name[lsmlen] == '.')
+		return sop->getprocattr(p, name + lsmlen + 1, value);
+	return -EINVAL;
 }
 
 int security_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
 {
-	return security_ops->setprocattr(p, name, value, size);
+	struct security_operations *sop;
+	char *lsm;
+	int lsmlen;
+
+	/*
+	 * Names will either be in the legacy form containing
+	 * no periods (".") or they will be the LSM name followed
+	 * by the legacy suffix.
+	 * "current" or "selinux.current"
+	 *
+	 * Legacy names are handled by the presenting LSM.
+	 * Suffixed names are handled by the named LSM.
+	 */
+	if (present_ops && !strchr(name, '.'))
+		return present_setprocattr(p, name, value, size);
+
+	sop = present_ops;
+	lsm = sop->name;
+	lsmlen = strlen(lsm);
+	if (!strncmp(name, lsm, lsmlen) && name[lsmlen] == '.')
+		return sop->setprocattr(p, name + lsmlen + 1, value, size);
+	return -EINVAL;
 }
 
 int security_netlink_send(struct sock *sk, struct sk_buff *skb)
@@ -1082,7 +1180,7 @@ int security_secctx_to_secid(const char *secdata, u32 seclen,
 	int rc;
 
 	rc = security_ops->secctx_to_secid(secdata, seclen, &sid);
-	lsm_init_secid(secid, sid, 0);
+	lsm_init_secid(secid, sid, -1);
 	return rc;
 }
 EXPORT_SYMBOL(security_secctx_to_secid);
@@ -1214,7 +1312,7 @@ int security_socket_getpeersec_dgram(struct socket *sock, struct sk_buff *skb,
 	int rc;
 
 	rc = security_ops->socket_getpeersec_dgram(sock, skb, &sid);
-	lsm_init_secid(secid, sid, 0);
+	lsm_init_secid(secid, sid, -1);
 	return rc;
 }
 EXPORT_SYMBOL(security_socket_getpeersec_dgram);

@@ -691,7 +691,7 @@ static inline void xfrm_audit_helper_usrinfo(uid_t auid, u32 ses, u32 secid,
 	struct security_operations *sop;
 
 	audit_log_format(audit_buf, " auid=%u ses=%u", auid, ses);
-	lsm_init_secid(&secids, secid, 0);
+	lsm_init_secid(&secids, secid, lsm_xfrm_order());
 	if (secid != 0 &&
 	    security_secid_to_secctx(&secids, &secctx, &secctx_len,
 				     &sop) == 0) {

@@ -818,7 +818,7 @@ static int check_kill_permission(int sig, struct siginfo *info,
 		}
 	}
 
-	lsm_init_secid(&secid, 0, 0);
+	lsm_init_secid(&secid, 0, -1);
 	return security_task_kill(t, info, sig, &secid);
 }
 

@@ -1534,7 +1534,7 @@ void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 	struct secids secids;
 	struct security_operations *sop;
 
-	lsm_init_secid(&secids, secid, 0);
+	lsm_init_secid(&secids, secid, lsm_secmark_order());
 	if (security_secid_to_secctx(&secids, &secctx, &len, &sop)) {
 		audit_panic("Cannot convert secid to context");
 	} else {

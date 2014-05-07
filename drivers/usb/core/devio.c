@@ -439,7 +439,7 @@ static void async_completed(struct urb *urb)
 	const struct cred *cred = NULL;
 	int signr;
 
-	lsm_init_secid(&secid, 0, 0);
+	lsm_init_secid(&secid, 0, -1);
 	spin_lock(&ps->lock);
 	list_move_tail(&as->asynclist, &ps->async_completed);
 	as->status = urb->status;

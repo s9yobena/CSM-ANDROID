@@ -407,7 +407,9 @@ int netlbl_secattr_catmap_setrng(struct netlbl_lsm_secattr_catmap *catmap,
 /*
  * LSM protocol operations (NetLabel LSM/kernel API)
  */
-int netlbl_enabled(void);
+int netlbl_enabled(struct security_operations *lsm);
+int netlbl_lsm_owner(struct security_operations *lsm);
+int netlbl_lsm_register(struct security_operations *lsm);
 int netlbl_sock_setattr(struct sock *sk,
 			u16 family,
 			const struct netlbl_lsm_secattr *secattr);
@@ -521,7 +523,11 @@ static inline int netlbl_secattr_catmap_setrng(
 {
 	return 0;
 }
-static inline int netlbl_enabled(void)
+static inline int netlbl_lsm_register(struct security_operations *lsm)
+{
+	return 0;
+}
+static inline int netlbl_enabled(struct security_operations *lsm)
 {
 	return 0;
 }

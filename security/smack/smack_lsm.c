@@ -1865,6 +1865,8 @@ static int smack_netlabel(struct sock *sk, int labeled)
 	struct netlbl_lsm_secattr secattr;
 	int rc = 0;
 
+	if (!netlbl_lsm_owner(&smack_ops))
+		return 0;
 	/*
 	 * Usually the netlabel code will handle changing the
 	 * packet labeling based on the label.
@@ -2969,7 +2971,7 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
 	struct netlbl_lsm_secattr secattr;
 	struct socket_smack *ssp = lsm_get_sock(sk, &smack_ops);
-	char *csp;
+	char *csp = smack_net_ambient;
 	int rc;
 	struct smk_audit_info ad;
 #ifdef CONFIG_AUDIT
@@ -2981,15 +2983,14 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	/*
 	 * Translate what netlabel gave us.
 	 */
-	netlbl_secattr_init(&secattr);
+	if (netlbl_lsm_owner(&smack_ops)) {
+		netlbl_secattr_init(&secattr);
+		rc = netlbl_skbuff_getattr(skb, sk->sk_family, &secattr);
+		if (rc == 0)
+			csp = smack_from_secattr(&secattr, ssp);
+		netlbl_secattr_destroy(&secattr);
+	}
 
-	rc = netlbl_skbuff_getattr(skb, sk->sk_family, &secattr);
-	if (rc == 0)
-		csp = smack_from_secattr(&secattr, ssp);
-	else
-		csp = smack_net_ambient;
-
-	netlbl_secattr_destroy(&secattr);
 
 #ifdef CONFIG_AUDIT
 	smk_ad_init_net(&ad, __func__, LSM_AUDIT_DATA_NET, &net);
@@ -3004,7 +3005,7 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	 * for networking.
 	 */
 	rc = smk_access(csp, ssp->smk_in, MAY_WRITE, &ad);
-	if (rc != 0)
+	if (rc != 0 && netlbl_lsm_owner(&smack_ops))
 		netlbl_skbuff_err(skb, rc, 0);
 	return rc;
 }
@@ -3077,18 +3078,21 @@ static int smack_socket_getpeersec_dgram(struct socket *sock,
 		ssp = lsm_get_sock(sock->sk, &smack_ops);
 		s = smack_to_secid(ssp->smk_out);
 	} else if (family == PF_INET || family == PF_INET6) {
-		/*
-		 * Translate what netlabel gave us.
-		 */
-		if (sock != NULL && sock->sk != NULL)
-			ssp = lsm_get_sock(sock->sk, &smack_ops);
-		netlbl_secattr_init(&secattr);
-		rc = netlbl_skbuff_getattr(skb, family, &secattr);
-		if (rc == 0) {
-			sp = smack_from_secattr(&secattr, ssp);
-			s = smack_to_secid(sp);
-		}
-		netlbl_secattr_destroy(&secattr);
+		if (netlbl_lsm_owner(&smack_ops)) {
+			/*
+			 * Translate what netlabel gave us.
+			 */
+			if (sock != NULL && sock->sk != NULL)
+				ssp = lsm_get_sock(sock->sk, &smack_ops);
+			netlbl_secattr_init(&secattr);
+			rc = netlbl_skbuff_getattr(skb, family, &secattr);
+			if (rc == 0) {
+				sp = smack_from_secattr(&secattr, ssp);
+				s = smack_to_secid(sp);
+			}
+			netlbl_secattr_destroy(&secattr);
+		} else
+			s = smack_to_secid(smack_net_ambient);
 	}
 	*secid = s;
 	if (s == 0)
@@ -3145,13 +3149,16 @@ static int smack_inet_conn_request(struct sock *sk, struct sk_buff *skb,
 	if (family == PF_INET6 && skb->protocol == htons(ETH_P_IP))
 		family = PF_INET;
 
-	netlbl_secattr_init(&secattr);
-	rc = netlbl_skbuff_getattr(skb, family, &secattr);
-	if (rc == 0)
-		sp = smack_from_secattr(&secattr, ssp);
-	else
-		sp = smack_known_huh.smk_known;
-	netlbl_secattr_destroy(&secattr);
+	if (netlbl_lsm_owner(&smack_ops)) {
+		netlbl_secattr_init(&secattr);
+		rc = netlbl_skbuff_getattr(skb, family, &secattr);
+		if (rc == 0)
+			sp = smack_from_secattr(&secattr, ssp);
+		else
+			sp = smack_known_huh.smk_known;
+		netlbl_secattr_destroy(&secattr);
+	} else
+		sp = smack_net_ambient;
 
 #ifdef CONFIG_AUDIT
 	smk_ad_init_net(&ad, __func__, LSM_AUDIT_DATA_NET, &net);
@@ -3178,20 +3185,21 @@ static int smack_inet_conn_request(struct sock *sk, struct sk_buff *skb,
 	 * if we do we only need to label the request_sock and the stack will
 	 * propagate the wire-label to the sock when it is created.
 	 */
-	hdr = ip_hdr(skb);
-	addr.sin_addr.s_addr = hdr->saddr;
-	rcu_read_lock();
-	if (smack_host_label(&addr) == NULL) {
-		rcu_read_unlock();
-		netlbl_secattr_init(&secattr);
-		smack_to_secattr(sp, &secattr);
-		rc = netlbl_req_setattr(req, &secattr);
-		netlbl_secattr_destroy(&secattr);
-	} else {
-		rcu_read_unlock();
-		netlbl_req_delattr(req);
+	if (netlbl_lsm_owner(&smack_ops)) {
+		hdr = ip_hdr(skb);
+		addr.sin_addr.s_addr = hdr->saddr;
+		rcu_read_lock();
+		if (smack_host_label(&addr) == NULL) {
+			rcu_read_unlock();
+			netlbl_secattr_init(&secattr);
+			smack_to_secattr(sp, &secattr);
+			rc = netlbl_req_setattr(req, &secattr);
+			netlbl_secattr_destroy(&secattr);
+		} else {
+			rcu_read_unlock();
+			netlbl_req_delattr(req);
+		}
 	}
-
 	return rc;
 }
 
@@ -3475,6 +3483,8 @@ static int smack_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen)
 
 struct security_operations smack_ops = {
 	.name =				"smack",
+	.features =			LSM_FEATURE_PRESENT |
+					LSM_FEATURE_NETLABEL,
 
 	.ptrace_access_check =		smack_ptrace_access_check,
 	.ptrace_traceme =		smack_ptrace_traceme,
@@ -3681,6 +3691,8 @@ static __init int smack_init(void)
 
 	/* initialize the smack_known_list */
 	init_smack_known_list();
+
+	smack_net_ambient = smack_known_floor.smk_known;
 
 	/*
 	 * Register with LSM
