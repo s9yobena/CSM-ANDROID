@@ -1460,7 +1460,7 @@ static void show_special(struct audit_context *context, int *call_panic)
 			u32 len;
 			struct security_operations *sop;
 			if (security_secid_to_secctx(osid, &ctx, &len, &sop)) {
-				audit_log_format(ab, " osc=%u", osid->si_count);
+				audit_log_format(ab, " osc=%u", 0);
 				*call_panic = 1;
 			} else {
 				audit_log_format(ab, " obj=%s", ctx);
@@ -1579,7 +1579,7 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
 		u32 len;
 		if (security_secid_to_secctx(
 					     &n->osid, &ctx, &len, &sop)) {
-			audit_log_format(ab, " osid=%u", n->osid.si_count);
+			audit_log_format(ab, " osid=%u", 0);
 			*call_panic = 2;
 		} else {
 			audit_log_format(ab, " obj=%s", ctx);

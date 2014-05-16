@@ -538,16 +538,16 @@ struct srcu_struct tomoyo_ss;
  */
 static int __init tomoyo_init(void)
 {
+	int rc;
 	struct cred *cred = (struct cred *) current_cred();
 
+	/* register ourselves with the security framework */
 	if (!security_module_enable(&tomoyo_security_ops))
 		return 0;
-	/* register ourselves with the security framework */
-	if (register_security(&tomoyo_security_ops) ||
-	    init_srcu_struct(&tomoyo_ss))
-		panic("Failure registering TOMOYO Linux");
 	printk(KERN_INFO "TOMOYO Linux initialized\n");
-	cred->security = &tomoyo_kernel_domain;
+	rc = lsm_set_init_cred(cred, &tomoyo_kernel_domain, &tomoyo_ops);
+	if (rc)
+		panic("Failure allocating credential for TOMOYO Linux");
 	tomoyo_mm_init();
 	return 0;
 }

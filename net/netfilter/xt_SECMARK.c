@@ -62,13 +62,15 @@ static int checkentry_lsm(struct xt_secmark_target_info *info)
 				       &secid, lsm_secmark_ops());
 	if (err) {
 		if (err == -EINVAL)
-			pr_info("invalid security context \'%s\'\n", info->secctx);
+			pr_info("invalid security context \'%s\'\n",
+					info->secctx);
 		return err;
 	}
 
 	info->secid = lsm_get_secid(&secid, lsm_secmark_order());
 	if (!info->secid) {
-		pr_info("unable to map security context \'%s\'\n", info->secctx);
+		pr_info("unable to map security context \'%s\'\n",
+				info->secctx);
 		return -ENOENT;
 	}
 

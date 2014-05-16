@@ -41,10 +41,19 @@
 #include <linux/binfmts.h>
 #include "smack.h"
 
-#define task_security(task)	(task_cred_xxx((task), security))
-
 #define TRANS_TRUE	"TRUE"
 #define TRANS_TRUE_SIZE	4
+
+static void *task_security(struct task_struct *task)
+{
+	const struct cred *cred;
+
+	rcu_read_lock();
+	cred = __task_cred(task);
+	rcu_read_unlock();
+
+	return lsm_get_cred(cred, &smack_ops);
+}
 
 /**
  * smk_fetch - Fetch the smack label from a file.
@@ -490,10 +499,12 @@ static void smack_bprm_committing_creds(struct linux_binprm *bprm)
 static int smack_bprm_secureexec(struct linux_binprm *bprm)
 {
 	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
+	int ret = cap_bprm_secureexec(bprm);
 
-	if (tsp->smk_task != tsp->smk_forked)
-		return 1;
-	return 0;
+	if (!ret && (tsp->smk_task != tsp->smk_forked))
+		ret = 1;
+
+	return ret;
 }
 
 /*
@@ -3019,9 +3030,8 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
  *
  * returns zero on success, an error code otherwise
  */
-static int smack_socket_getpeersec_stream(struct socket *sock,
-					  char __user *optval,
-					  int __user *optlen, unsigned len)
+static int smack_socket_getpeersec_stream(struct socket *sock, char *optval,
+					  int *optlen, unsigned len)
 {
 	struct socket_smack *ssp;
 	char *rcp = "";
@@ -3036,11 +3046,9 @@ static int smack_socket_getpeersec_stream(struct socket *sock,
 
 	if (slen > len)
 		rc = -ERANGE;
-	else if (copy_to_user(optval, rcp, slen) != 0)
-		rc = -EFAULT;
-
-	if (put_user(slen, optlen) != 0)
-		rc = -EFAULT;
+	else
+		strcpy(optval, rcp);
+	*optlen = slen;
 
 	return rc;
 }
@@ -3484,7 +3492,8 @@ static int smack_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen)
 struct security_operations smack_ops = {
 	.name =				"smack",
 	.features =			LSM_FEATURE_PRESENT |
-					LSM_FEATURE_NETLABEL,
+					LSM_FEATURE_NETLABEL |
+					LSM_FEATURE_SECIDS,
 
 	.ptrace_access_check =		smack_ptrace_access_check,
 	.ptrace_traceme =		smack_ptrace_traceme,
@@ -3670,6 +3679,7 @@ static __init void init_smack_known_list(void)
  */
 static __init int smack_init(void)
 {
+	int rc;
 	struct cred *cred;
 	struct task_smack *tsp;
 
@@ -3687,18 +3697,14 @@ static __init int smack_init(void)
 	 * Set the security state for the initial task.
 	 */
 	cred = (struct cred *) current->cred;
-	lsm_set_cred(cred, tsp, &smack_ops);
+	rc = lsm_set_init_cred(cred, tsp, &smack_ops);
+	if (rc != 0)
+		panic("smack: Unable to initialize credentials.\n");
 
 	/* initialize the smack_known_list */
 	init_smack_known_list();
 
 	smack_net_ambient = smack_known_floor.smk_known;
-
-	/*
-	 * Register with LSM
-	 */
-	if (register_security(&smack_ops))
-		panic("smack: Unable to register with kernel.\n");
 
 	return 0;
 }

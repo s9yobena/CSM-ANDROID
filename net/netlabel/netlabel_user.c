@@ -114,7 +114,7 @@ struct audit_buffer *netlbl_audit_start_common(int type,
 			 audit_info->loginuid,
 			 audit_info->sessionid);
 
-	if (!lsm_zero_secid(&audit_info->secid) &&
+	if (lsm_get_secid(&audit_info->secid, lsm_netlbl_order()) &&
 	    security_secid_to_secctx(&audit_info->secid,
 				     &secctx,
 				     &secctx_len, &sop) == 0) {

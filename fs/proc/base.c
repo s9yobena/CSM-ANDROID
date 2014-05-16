@@ -127,11 +127,11 @@ struct pid_entry {
 #define REG(NAME, MODE, fops)				\
 	NOD(NAME, (S_IFREG|(MODE)), NULL, &fops, {})
 #define INF(NAME, MODE, read)				\
-	NOD(NAME, (S_IFREG|(MODE)), 			\
+	NOD(NAME, (S_IFREG|(MODE)),			\
 		NULL, &proc_info_file_operations,	\
 		{ .proc_read = read } )
 #define ONE(NAME, MODE, show)				\
-	NOD(NAME, (S_IFREG|(MODE)), 			\
+	NOD(NAME, (S_IFREG|(MODE)),			\
 		NULL, &proc_single_file_operations,	\
 		{ .proc_show = show } )
 
@@ -219,7 +219,7 @@ static int proc_pid_cmdline(struct task_struct *task, char * buffer)
 	if (!mm->arg_end)
 		goto out_mm;	/* Shh! No looking before we're done */
 
- 	len = mm->arg_end - mm->arg_start;
+	len = mm->arg_end - mm->arg_start;
  
 	if (len > PAGE_SIZE)
 		len = PAGE_SIZE;
@@ -2657,7 +2657,7 @@ static const struct pid_entry attr_dir_stuff[] = {
 	REG("selinux.keycreate",  S_IRUGO|S_IWUGO, proc_pid_attr_operations),
 	REG("selinux.sockcreate", S_IRUGO|S_IWUGO, proc_pid_attr_operations),
 #endif
-	#ifdef CONFIG_SECURITY_SMACK
+#ifdef CONFIG_SECURITY_SMACK
 	REG("smack.current",      S_IRUGO|S_IWUGO, proc_pid_attr_operations),
 #endif
 #ifdef CONFIG_SECURITY_APPARMOR

@@ -225,15 +225,19 @@ static ssize_t lsm_read(struct file *filp, char __user *buf, size_t count,
 	char *data;
 	int len;
 
-	data = kzalloc(SECURITY_NAME_MAX + 1, GFP_KERNEL);
+	data = kzalloc(LSM_NAMES_MAX + 1, GFP_KERNEL);
 	if (data == NULL)
 		return -ENOMEM;
 
-	strcat(data, sop->name);
-	strcat(data, "\n");
+	list_for_each_entry(sop, &lsm_hooks[lsm_name], list[lsm_name]) {
+		strcat(data, sop->name);
+		strcat(data, ",");
+	}
 	len = strlen(data);
+	if (len > 1)
+		data[len-1] = '\n';
 
-	len = simple_read_from_buffer(buf, count, ppos, data, len + 1);
+	len = simple_read_from_buffer(buf, count, ppos, data, len);
 	kfree(data);
 
 	return len;

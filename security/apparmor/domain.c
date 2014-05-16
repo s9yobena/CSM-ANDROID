@@ -522,12 +522,15 @@ cleanup:
  */
 int apparmor_bprm_secureexec(struct linux_binprm *bprm)
 {
+	int ret = cap_bprm_secureexec(bprm);
+
 	/* the decision to use secure exec is computed in set_creds
 	 * and stored in bprm->unsafe.
 	 */
-	if (bprm->unsafe & AA_SECURE_X_NEEDED)
-		return 1;
-	return 0;
+	if (!ret && (bprm->unsafe & AA_SECURE_X_NEEDED))
+		ret = 1;
+
+	return ret;
 }
 
 /**

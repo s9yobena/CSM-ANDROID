@@ -109,7 +109,8 @@ static struct netlbl_lsm_secattr *selinux_netlbl_sock_genattr(struct sock *sk)
  */
 void selinux_netlbl_cache_invalidate(void)
 {
-	netlbl_cache_invalidate();
+	if (netlbl_lsm_owner(&selinux_ops))
+		netlbl_cache_invalidate();
 }
 
 /**
@@ -127,7 +128,8 @@ void selinux_netlbl_cache_invalidate(void)
  */
 void selinux_netlbl_err(struct sk_buff *skb, int error, int gateway)
 {
-	netlbl_skbuff_err(skb, error, gateway);
+	if (netlbl_lsm_owner(&selinux_ops))
+		netlbl_skbuff_err(skb, error, gateway);
 }
 
 /**
@@ -140,7 +142,7 @@ void selinux_netlbl_err(struct sk_buff *skb, int error, int gateway)
  */
 void selinux_netlbl_sk_security_free(struct sk_security_struct *sksec)
 {
-	if (sksec->nlbl_secattr != NULL)
+	if (netlbl_lsm_owner(&selinux_ops) && sksec->nlbl_secattr != NULL)
 		netlbl_secattr_free(sksec->nlbl_secattr);
 }
 
@@ -156,7 +158,8 @@ void selinux_netlbl_sk_security_free(struct sk_security_struct *sksec)
  */
 void selinux_netlbl_sk_security_reset(struct sk_security_struct *sksec)
 {
-	sksec->nlbl_state = NLBL_UNSET;
+	if (netlbl_lsm_owner(&selinux_ops))
+		sksec->nlbl_state = NLBL_UNSET;
 }
 
 /**
@@ -217,6 +220,9 @@ int selinux_netlbl_skbuff_setsid(struct sk_buff *skb,
 	struct netlbl_lsm_secattr *secattr = NULL;
 	struct sock *sk;
 
+	if (!netlbl_lsm_owner(&selinux_ops))
+		return 0;
+
 	/* if this is a locally generated packet check to see if it is already
 	 * being labeled by it's parent socket, if it is just exit */
 	sk = skb->sk;
@@ -259,6 +265,9 @@ int selinux_netlbl_inet_conn_request(struct request_sock *req, u16 family)
 	int rc;
 	struct netlbl_lsm_secattr secattr;
 
+	if (!netlbl_lsm_owner(&selinux_ops))
+		return 0;
+
 	if (family != PF_INET)
 		return 0;
 
@@ -286,6 +295,9 @@ void selinux_netlbl_inet_csk_clone(struct sock *sk, u16 family)
 {
 	struct sk_security_struct *sksec = lsm_get_sock(sk, &selinux_ops);
 
+	if (!netlbl_lsm_owner(&selinux_ops))
+		return;
+
 	if (family == PF_INET)
 		sksec->nlbl_state = NLBL_LABELED;
 	else
@@ -307,6 +319,9 @@ int selinux_netlbl_socket_post_create(struct sock *sk, u16 family)
 	int rc;
 	struct sk_security_struct *sksec = lsm_get_sock(sk, &selinux_ops);
 	struct netlbl_lsm_secattr *secattr;
+
+	if (!netlbl_lsm_owner(&selinux_ops))
+		return 0;
 
 	if (family != PF_INET)
 		return 0;
@@ -406,6 +421,9 @@ int selinux_netlbl_socket_setsockopt(struct socket *sock,
 	struct sk_security_struct *sksec = lsm_get_sock(sk, &selinux_ops);
 	struct netlbl_lsm_secattr secattr;
 
+	if (!netlbl_lsm_owner(&selinux_ops))
+		return 0;
+
 	if (level == IPPROTO_IP && optname == IP_OPTIONS &&
 	    (sksec->nlbl_state == NLBL_LABELED ||
 	     sksec->nlbl_state == NLBL_CONNLABELED)) {
@@ -438,6 +456,9 @@ int selinux_netlbl_socket_connect(struct sock *sk, struct sockaddr *addr)
 	int rc;
 	struct sk_security_struct *sksec = lsm_get_sock(sk, &selinux_ops);
 	struct netlbl_lsm_secattr *secattr;
+
+	if (!netlbl_lsm_owner(&selinux_ops))
+		return 0;
 
 	if (sksec->nlbl_state != NLBL_REQSKB &&
 	    sksec->nlbl_state != NLBL_CONNLABELED)

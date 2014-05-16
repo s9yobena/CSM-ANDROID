@@ -153,13 +153,16 @@ static void cred_init_security(void)
 {
 	struct cred *cred = (struct cred *) current->real_cred;
 	struct task_security_struct *tsec;
+	int rc;
 
 	tsec = kzalloc(sizeof(struct task_security_struct), GFP_KERNEL);
 	if (!tsec)
 		panic("SELinux:  Failed to initialize initial task.\n");
 
 	tsec->osid = tsec->sid = SECINITSID_KERNEL;
-	lsm_set_cred(cred, tsec, &selinux_ops);
+	rc = lsm_set_init_cred(cred, tsec, &selinux_ops);
+	if (rc)
+		panic("SELinux:  Failed to initialize initial task.\n");
 }
 
 /*
@@ -1919,7 +1922,13 @@ static int selinux_ptrace_traceme(struct task_struct *parent)
 static int selinux_capget(struct task_struct *target, kernel_cap_t *effective,
 			  kernel_cap_t *inheritable, kernel_cap_t *permitted)
 {
-	return current_has_perm(target, PROCESS__GETCAP);
+	int error;
+
+	error = current_has_perm(target, PROCESS__GETCAP);
+	if (error)
+		return error;
+
+	return cap_capget(target, effective, inheritable, permitted);
 }
 
 static int selinux_capset(struct cred *new, const struct cred *old,
@@ -2156,7 +2165,7 @@ static int selinux_bprm_secureexec(struct linux_binprm *bprm)
 					PROCESS__NOATSECURE, NULL);
 	}
 
-	return atsecure;
+	return (atsecure || cap_bprm_secureexec(bprm));
 }
 
 /* Derived from fs/exec.c:flush_old_files. */
@@ -4272,8 +4281,8 @@ static int selinux_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	return err;
 }
 
-static int selinux_socket_getpeersec_stream(struct socket *sock, char __user *optval,
-					    int __user *optlen, unsigned len)
+static int selinux_socket_getpeersec_stream(struct socket *sock, char *optval,
+					    int *optlen, unsigned len)
 {
 	int err = 0;
 	char *scontext;
@@ -4296,12 +4305,10 @@ static int selinux_socket_getpeersec_stream(struct socket *sock, char __user *op
 		goto out_len;
 	}
 
-	if (copy_to_user(optval, scontext, scontext_len))
-		err = -EFAULT;
+	strcpy(optval, scontext);
 
 out_len:
-	if (put_user(scontext_len, optlen))
-		err = -EFAULT;
+	*optlen = scontext_len;
 	kfree(scontext);
 	return err;
 }
@@ -5566,7 +5573,8 @@ struct security_operations selinux_ops = {
 	.features =			LSM_FEATURE_PRESENT |
 					LSM_FEATURE_NETLABEL |
 					LSM_FEATURE_XFRM |
-					LSM_FEATURE_SECMARK,
+					LSM_FEATURE_SECMARK |
+					LSM_FEATURE_SECIDS,
 
 	.binder_set_context_mgr =	selinux_binder_set_context_mgr,
 	.binder_transaction =		selinux_binder_transaction,
@@ -5769,13 +5777,12 @@ struct security_operations selinux_ops = {
 
 static __init int selinux_init(void)
 {
-	if (!security_module_enable(&selinux_ops)) {
+
+	if (!security_module_enable(&selinux_ops))
 		selinux_enabled = 0;
-		return 0;
-	}
 
 	if (!selinux_enabled) {
-		printk(KERN_INFO "SELinux:  Disabled at boot.\n");
+		pr_info("SELinux:  Disabled at boot.\n");
 		return 0;
 	}
 
@@ -5787,12 +5794,9 @@ static __init int selinux_init(void)
 	default_noexec = !(VM_DATA_DEFAULT_FLAGS & VM_EXEC);
 
 	sel_inode_cache = kmem_cache_create("selinux_inode_security",
-					    sizeof(struct inode_security_struct),
-					    0, SLAB_PANIC, NULL);
+					   sizeof(struct inode_security_struct),
+					   0, SLAB_PANIC, NULL);
 	avc_init();
-
-	if (register_security(&selinux_ops))
-		panic("SELinux: Unable to register with kernel.\n");
 
 	if (selinux_enforcing)
 		printk(KERN_DEBUG "SELinux:  Starting in enforcing mode\n");
@@ -5927,12 +5931,11 @@ int selinux_disable(void)
 		return -EINVAL;
 	}
 
+	security_module_disable(&selinux_ops);
 	printk(KERN_INFO "SELinux:  Disabled at runtime.\n");
 
 	selinux_disabled = 1;
 	selinux_enabled = 0;
-
-	reset_security_ops();
 
 	/* Try to destroy the avc node cache */
 	avc_disable();
