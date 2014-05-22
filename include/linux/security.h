@@ -160,7 +160,8 @@ struct request_sock;
 
 #ifdef CONFIG_MMU
 extern int mmap_min_addr_handler(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp, loff_t *ppos);
+				 void __user *buffer, size_t *lenp,
+				 loff_t *ppos);
 #endif
 
 /* security_inode_init_security callback function to write xattrs */
@@ -398,6 +399,7 @@ enum lsm_hooks_index {
 	LSM_MAX_HOOKS
 };
 
+extern struct security_operations *peersec_ops;
 /*
  * There is a list for each hook.
  */
@@ -520,7 +522,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	Return 0 if permission is granted.
  * @sb_pivotroot:
  *	Check permission before pivoting the root filesystem.
- *	@old_path contains the path for the new location of the current root (put_old).
+ *	@old_path contains the path for the new location of the
+ *	current root (put_old).
  *	@new_path contains the path for the new root (new_root).
  *	Return 0 if permission is granted.
  * @sb_set_mnt_opts:
@@ -576,8 +579,10 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	Return 0 if permission is granted.
  * @inode_link:
  *	Check permission before creating a new hard link to a file.
- *	@old_dentry contains the dentry structure for an existing link to the file.
- *	@dir contains the inode structure of the parent directory of the new link.
+ *	@old_dentry contains the dentry structure for an existing link
+ *	to the file.
+ *	@dir contains the inode structure of the parent directory of
+ *	the new link.
  *	@new_dentry contains the dentry structure for the new link.
  *	Return 0 if permission is granted.
  * @path_link:
@@ -600,7 +605,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	Return 0 if permission is granted.
  * @inode_symlink:
  *	Check the permission to create a symbolic link to a file.
- *	@dir contains the inode structure of parent directory of the symbolic link.
+ *	@dir contains the inode structure of parent directory of the
+ *	symbolic link.
  *	@dentry contains the dentry structure of the symbolic link.
  *	@old_name contains the pathname of file.
  *	Return 0 if permission is granted.
@@ -614,7 +620,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  * @inode_mkdir:
  *	Check permissions to create a new directory in the existing directory
  *	associated with inode structure @dir.
- *	@dir contains the inode structure of parent of the directory to be created.
+ *	@dir contains the inode structure of parent of the directory
+ *	to be created.
  *	@dentry contains the dentry structure of new directory.
  *	@mode contains the mode of new directory.
  *	Return 0 if permission is granted.
@@ -628,7 +635,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	Return 0 if permission is granted.
  * @inode_rmdir:
  *	Check the permission to remove a directory.
- *	@dir contains the inode structure of parent of the directory to be removed.
+ *	@dir contains the inode structure of parent of the directory to be
+ *	removed.
  *	@dentry contains the dentry structure of directory to be removed.
  *	Return 0 if permission is granted.
  * @path_rmdir:
@@ -1154,7 +1162,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	Checks permission before all or part of a connection on the socket
  *	@sock is shut down.
  *	@sock contains the socket structure.
- *	@how contains the flag indicating how future sends and receives are handled.
+ *	@how contains the flag indicating how future sends and receives
+ *	are handled.
  *	Return 0 if permission is granted.
  * @socket_sock_rcv_skb:
  *	Check permissions on incoming network packets.  This hook is distinct
@@ -1195,18 +1204,21 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  * @sk_clone_security:
  *	Clone/copy security structure.
  * @sk_getsecid:
- *	Retrieve the LSM-specific secid for the sock to enable caching of network
+ *	Retrieve the LSM-specific secid for the sock to enable caching
+ *	of network
  *	authorizations.
  * @sock_graft:
  *	Sets the socket's isec sid to the sock's sid.
  * @inet_conn_request:
- *	Sets the openreq's sid to socket's sid with MLS portion taken from peer sid.
+ *	Sets the openreq's sid to socket's sid with MLS portion taken
+ *	from peer sid.
  * @inet_csk_clone:
  *	Sets the new child socket's sid to the openreq sid.
  * @inet_conn_established:
  *	Sets the connection's peersid to the secmark on skb.
  * @secmark_relabel_packet:
- *	check if the process should be allowed to relabel packets to the given secid
+ *	check if the process should be allowed to relabel packets to the
+ *	given secid
  * @security_secmark_refcount_inc
  *	tells the LSM to increment the number of secmark labeling rules loaded
  * @security_secmark_refcount_dec
@@ -1252,12 +1264,14 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	Database by the XFRM system.
  *	@sec_ctx contains the security context information being provided by
  *	the user-level SA generation program (e.g., setkey or racoon).
- *	@secid contains the secid from which to take the mls portion of the context.
+ *	@secid contains the secid from which to take the mls portion of
+ *	the context.
  *	Allocate a security structure to the x->security field; the security
  *	field is initialized to NULL when the xfrm_state is allocated. Set the
  *	context to correspond to either sec_ctx or polsec, with the mls portion
  *	taken from secid in the latter case.
- *	Return 0 if operation was successful (memory to allocate, legal context).
+ *	Return 0 if operation was successful (memory to allocate,
+ *	legal context).
  * @xfrm_state_free_security:
  *	@x contains the xfrm_state.
  *	Deallocate x->security.
@@ -1547,7 +1561,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *
  * @audit_rule_init:
  *	Allocate and initialize an LSM audit rule structure.
- *	@field contains the required Audit action. Fields flags are defined in include/linux/audit.h
+ *	@field contains the required Audit action. Fields flags are
+ *	defined in include/linux/audit.h
  *	@op contains the operator the rule uses.
  *	@rulestr contains the context where the rule will be applied to.
  *	@lsmrule contains a pointer to receive the result.
@@ -1555,7 +1570,8 @@ extern struct list_head lsm_hooks[LSM_MAX_HOOKS];
  *	-EINVAL in case of an invalid rule.
  *
  * @audit_rule_known:
- *	Specifies whether given @rule contains any fields related to current LSM.
+ *	Specifies whether given @rule contains any fields related to
+ *	current LSM.
  *	@rule contains the audit rule of interest.
  *	Return 1 in case of relation found, 0 otherwise.
  *
@@ -1915,12 +1931,10 @@ struct security_operations {
 /* prototypes */
 extern int security_init(void);
 extern int security_module_enable(struct security_operations *ops);
-extern void __init security_fixup_ops(struct security_operations *ops);
 
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
 extern void security_module_disable(struct security_operations *ops);
 #endif /* CONFIG_SECURITY_SELINUX_DISABLE */
-extern struct security_operations *peersec_ops;
 
 /* Security operations */
 int security_binder_set_context_mgr(struct task_struct *mgr);

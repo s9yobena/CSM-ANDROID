@@ -7,20 +7,56 @@ various security checks to be hooked by new kernel extensions. The name
 loadable kernel modules. Instead, they are selectable at build-time via
 CONFIG_DEFAULT_SECURITY and can be overridden at boot-time via the
 "security=..." kernel command line argument, in the case where multiple
-LSMs were built into a given kernel.
+LSMs were built into a given kernel. The names of the active LSMs
+can be read from /sys/kernel/security/lsm.
+
+Both CONFIG_DEFAULT_SECURITY and the "security=" option take a comma
+separated list of LSM names. The LSM hooks are invoked in the order
+specified. All hooks provided are invoked regardless of the outcome
+of preceding hooks. Hooks that return success or failure results
+return success if all of the LSM provided hooks succeed and the error
+code of the last failing hook on error.
+
+Information from an LSM can come in one of two forms. The raw data
+used by the LSM is typically the preferred form. SELinux contexts and
+Smack labels are examples of raw LSM data. If the data from multiple
+LSMs is presented together it will be in the form:
+
+	lsmname='value'[lsmname='value']...
+
+Interfaces that accept LSM data as input accept this format as well,
+passing only the relevant portion of the data to each LSM.
+
+The /proc filesystem attribute interface supports files from a time
+when only one LSM could be used at a time. CONFIG_PRESENT_SECURITY
+defines which LSM uses these interfaces. The name of this LSM can be
+read from /sys/kernel/security/present. There are also LSM identified
+interfaces which should be used in preference to the undifferentiated
+interfaces. The attribute interface "context" always provides the
+data from all LSMs that maintain it in the lsmname='value' format.
+
+The three networking mechanisms supporting LSM attributes are
+restricted to providing those attributes for a single LSM each.
+CONFIG_SECMARK_LSM specifies which LSM will provide hooks for the
+secmark mechanism. CONFIG_NETLABEL_LSM specifies which LSM hooks
+are used by NetLabel to provide IPv4 CIPSO headers. CONFIG_XFRM_LSM
+specifies the LSM providing xfrm hooks. CONFIG_PEERSEC_LSM allows
+for either a specific LSM to provide data with SO_PEERSEC or for
+all LSMs that provide data to do so.
+
+The Linux capabilities system is used in conjunction with any LSMs.
+LSM hooks are called after the capability checks in most cases,
+but after in a small number of cases. All LSM hooks need to be aware
+of the potential interactions with the capability system. For more
+details on capabilities, see capabilities(7) in the Linux man-pages
+project.
 
 The primary users of the LSM interface are Mandatory Access Control
 (MAC) extensions which provide a comprehensive security policy. Examples
 include SELinux, Smack, Tomoyo, and AppArmor. In addition to the larger
-MAC extensions, other extensions can be built using the LSM to provide
-specific changes to system operation when these tweaks are not available
-in the core functionality of Linux itself.
-
-Without a specific LSM built into the kernel, the default LSM will be the
-Linux capabilities system. Most LSMs choose to extend the capabilities
-system, building their checks on top of the defined capability hooks.
-For more details on capabilities, see capabilities(7) in the Linux
-man-pages project.
+MAC extensions, other extensions such as Yama can be built using the LSM
+to provide specific changes to system operation when these tweaks are not
+available in the core functionality of Linux itself.
 
 Based on http://kerneltrap.org/Linux/Documenting_Security_Module_Intent,
 a new LSM is accepted into the kernel when its intent (a description of
