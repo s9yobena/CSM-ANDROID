@@ -57,7 +57,11 @@ struct mm_struct;
 #define SECURITY_NAME_MAX	10
 
 /* Maximum number of LSMs that can be used at a time.  */
+#ifdef CONFIG_SECURITY
 #define LSM_SLOTS	CONFIG_SECURITY_LSM_MAX
+#else
+#define LSM_SLOTS	1
+#endif
 #define LSM_NAMES_MAX	((SECURITY_NAME_MAX + 1) * LSM_SLOTS)
 
 /* If capable should audit the security request */
@@ -152,7 +156,7 @@ struct request_sock;
 #define LSM_FEATURE_NETLABEL	0x02
 #define LSM_FEATURE_XFRM	0x04
 #define LSM_FEATURE_SECMARK	0x08
-#define LSM_FEATURE_SECIDS	0x10
+#define LSM_FEATURE_PEERSEC	0x10
 
 #ifdef CONFIG_MMU
 extern int mmap_min_addr_handler(struct ctl_table *table, int write,
@@ -1916,6 +1920,7 @@ extern void __init security_fixup_ops(struct security_operations *ops);
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
 extern void security_module_disable(struct security_operations *ops);
 #endif /* CONFIG_SECURITY_SELINUX_DISABLE */
+extern struct security_operations *peersec_ops;
 
 /* Security operations */
 int security_binder_set_context_mgr(struct task_struct *mgr);

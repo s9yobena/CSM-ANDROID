@@ -58,10 +58,7 @@ struct security_operations *netlbl_ops;
 struct security_operations *secmark_ops;
 EXPORT_SYMBOL(secmark_ops);
 #endif /* CONFIG_NETWORK_SECMARK */
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
-struct security_operations *secid_ops;
-static __initdata int lsm_secid_users;
-#endif /* CONFIG_SECURITY_PLAIN_CONTEXT */
+struct security_operations *peersec_ops;
 struct security_operations *present_ops;
 static int (*present_getprocattr)
 	(struct task_struct *p, char *name, char **value);
@@ -531,6 +528,8 @@ int __init security_module_enable(struct security_operations *ops)
 	 * If a module is specified that does not supply the
 	 * required hooks don't assign the feature to anyone.
 	 *
+	 * CONFIG_PEERSEC_LSM
+	 *      What shows up with SO_PEERSEC
 	 * CONFIG_SECURITY_PRESENT
 	 *      What shows up in /proc/.../attr/current
 	 * CONFIG_NETLABEL_LSM
@@ -540,14 +539,9 @@ int __init security_module_enable(struct security_operations *ops)
 	 * CONFIG_SECMARK_LSM
 	 *      Networking secmark
 	 */
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
-	if (ops->features & LSM_FEATURE_SECIDS) {
-		if (++lsm_secid_users == 1)
-			secid_ops = ops;
-		else
-			secid_ops = NULL;
-	}
-#endif
+	if (owns_feature(peersec_ops, ops, CONFIG_PEERSEC_LSM,
+				LSM_FEATURE_PEERSEC))
+		peersec_ops = ops;
 	if (owns_feature(present_ops, ops, CONFIG_PRESENT_SECURITY,
 			 LSM_FEATURE_PRESENT)) {
 		present_ops = ops;
@@ -1867,7 +1861,7 @@ EXPORT_SYMBOL(security_d_instantiate);
 
 int security_getprocattr(struct task_struct *p, char *name, char **value)
 {
-	struct security_operations *sop;
+	struct security_operations *sop = NULL;
 	struct secids secid;
 	char *lsm;
 	int lsmlen;
@@ -1946,10 +1940,19 @@ int security_netlink_send(struct sock *sk, struct sk_buff *skb)
 	return call_int_hook(netlink_send, sk, skb);
 }
 
+/*
+ * On input *secops is either the operations for the one LSM
+ * to get the text for or NULL, indicating that the entire set
+ * on security information is desired.
+ *
+ * On exit *secops will contain the operations for the LSM
+ * that allocated the secctx or NULL, indicating that the lsm
+ * infrastructure allocated it.
+ */
 int security_secid_to_secctx(struct secids *secid, char **secdata, u32 *seclen,
 			     struct security_operations **secops)
 {
-	struct security_operations *sop;
+	struct security_operations *sop = *secops;
 	struct security_operations *gotthis = NULL;
 	char *data;
 	char *cp;
@@ -1961,14 +1964,9 @@ int security_secid_to_secctx(struct secids *secid, char **secdata, u32 *seclen,
 	u32 lenmany = 2;
 	int ret = 0;
 
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
-	if (secid_ops) {
-		ret = secid_ops->secid_to_secctx(
-						 secid->si_lsm[secid_ops->order], secdata, seclen);
-		*secops = secid_ops;
-		return ret;
-	}
-#endif
+	if (sop)
+		return sop->secid_to_secctx(secid->si_lsm[sop->order],
+					    secdata, seclen);
 
 	for_each_hook(sop, secid_to_secctx) {
 		ord = sop->order;
@@ -2063,10 +2061,10 @@ int security_secctx_to_secid(const char *secdata, u32 seclen,
 		lsm_set_secid(secid, sid, secops->order);
 		return ret;
 	}
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
-	if (secid_ops) {
-		ret = secid_ops->secctx_to_secid(secdata, seclen, &sid);
-		lsm_set_secid(secid, sid, secid_ops->order);
+#ifdef CONFIG_SECURITY_PLAIN_CONTEXT_CBS
+	if (peersec_ops) {
+		ret = peersec_ops->secctx_to_secid(secdata, seclen, &sid);
+		lsm_set_secid(secid, sid, peersec_ops->order);
 		return ret;
 	}
 #endif
@@ -2198,10 +2196,10 @@ int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen,
 	u32 len = 2;
 	int ret = 0;
 
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
-	if (secid_ops) {
-		ret = secid_ops->inode_getsecctx(inode, ctx, ctxlen);
-		*secops = secid_ops;
+#ifdef CONFIG_SECURITY_PLAIN_CONTEXT_CBS
+	if (peersec_ops) {
+		ret = peersec_ops->inode_getsecctx(inode, ctx, ctxlen);
+		*secops = peersec_ops;
 		return ret;
 	}
 #endif
@@ -2372,13 +2370,11 @@ int security_socket_getpeersec_stream(struct socket *sock, char __user *optval,
 	result = thisval;
 	tp = result + len;
 
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
-	if (secid_ops) {
-		ret = secid_ops->socket_getpeersec_stream(sock, result,
-							  &thislen, len);
+	if (peersec_ops) {
+		ret = peersec_ops->socket_getpeersec_stream(sock, result,
+							    &thislen, len);
 		goto sendout;
 	}
-#endif
 
 	for_each_hook(sop, socket_getpeersec_stream) {
 		thisrc = sop->socket_getpeersec_stream(sock, tp, &thislen, len);
@@ -2394,9 +2390,7 @@ int security_socket_getpeersec_stream(struct socket *sock, char __user *optval,
 		} else if (thisrc != -ENOPROTOOPT)
 			ret = thisrc;
 	}
-#ifdef CONFIG_SECURITY_PLAIN_CONTEXT
  sendout:
-#endif
 	if (ret == 0) {
 		len = strlen(result) + 1;
 		if (put_user(len, optlen))
@@ -2417,6 +2411,9 @@ int security_socket_getpeersec_dgram(struct socket *sock, struct sk_buff *skb,
 	u32 sid;
 
 	lsm_init_secid(secid, 0, -1);
+
+	if (peersec_ops)
+		return peersec_ops->socket_getpeersec_dgram(sock, skb, &sid);
 
 	for_each_hook(sop, socket_getpeersec_dgram) {
 		thisrc = sop->socket_getpeersec_dgram(sock, skb, &sid);

@@ -662,7 +662,7 @@ static int audit_receive_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	struct audit_sig_info   *sig_data;
 	char			*ctx = NULL;
 	u32			len;
-	struct security_operations *sop;
+	struct security_operations *sop = NULL;
 
 	err = audit_netlink_ok(skb, msg_type);
 	if (err)
@@ -1499,7 +1499,7 @@ void audit_log_end(struct audit_buffer *ab)
 void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 	       const char *fmt, ...)
 {
-	struct security_operations *sop;
+	struct security_operations *sop = NULL;
 	struct audit_buffer *ab;
 	va_list args;
 
@@ -1532,7 +1532,7 @@ void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 	u32 len;
 	char *secctx;
 	struct secids secids;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_secmark_ops();
 
 	lsm_init_secid(&secids, secid, lsm_secmark_order());
 	if (security_secid_to_secctx(&secids, &secctx, &len, &sop)) {

@@ -397,7 +397,7 @@ int netlbl_unlhsh_add(struct net *net,
 	struct secids secids;
 	char *secctx = NULL;
 	u32 secctx_len;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_netlbl_ops();
 
 	if (addr_len != sizeof(struct in_addr) &&
 	    addr_len != sizeof(struct in6_addr))
@@ -498,7 +498,7 @@ static int netlbl_unlhsh_remove_addr4(struct net *net,
 	struct net_device *dev;
 	char *secctx;
 	u32 secctx_len;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_netlbl_ops();
 
 	spin_lock(&netlbl_unlhsh_lock);
 	list_entry = netlbl_af4list_remove(addr->s_addr, mask->s_addr,
@@ -561,7 +561,7 @@ static int netlbl_unlhsh_remove_addr6(struct net *net,
 	struct net_device *dev;
 	char *secctx;
 	u32 secctx_len;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_netlbl_ops();
 
 	spin_lock(&netlbl_unlhsh_lock);
 	list_entry = netlbl_af6list_remove(addr, mask, &iface->addr6_list);
@@ -1102,7 +1102,7 @@ static int netlbl_unlabel_staticlist_gen(u32 cmd,
 	const struct secids *secid;
 	char *secctx;
 	u32 secctx_len;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_netlbl_ops();
 
 	data = genlmsg_put(cb_arg->skb, NETLINK_CB(cb_arg->nl_cb->skb).pid,
 			   cb_arg->seq, &netlbl_unlabel_gnl_family,

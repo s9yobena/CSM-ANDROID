@@ -263,6 +263,16 @@ static inline int lsm_secmark_order(void)
 }
 #endif /* CONFIG_NETWORK_SECMARK */
 
+static inline int lsm_peersec_order(void)
+{
+	return peersec_ops->order;
+}
+
+static inline struct security_operations *lsm_peersec_ops(void)
+{
+	return peersec_ops;
+}
+
 #else /* CONFIG_SECURITY */
 
 static inline int lsm_xfrm_order(void)
@@ -276,6 +286,11 @@ static inline int lsm_secmark_order(void)
 }
 
 static inline struct security_operations *lsm_secmark_ops(void)
+{
+	return NULL;
+}
+
+static inline struct security_operations *lsm_peersec_ops(void)
 {
 	return NULL;
 }

@@ -125,7 +125,7 @@ static int ct_show_secctx(struct seq_file *s, const struct nf_conn *ct)
 	u32 len;
 	char *secctx;
 	struct secids secid;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_secmark_ops();
 
 	lsm_init_secid(&secid, ct->secmark, lsm_secmark_order());
 	ret = security_secid_to_secctx(&secid, &secctx, &len, &sop);

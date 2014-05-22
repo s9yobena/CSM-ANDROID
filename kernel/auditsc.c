@@ -1197,7 +1197,7 @@ static int audit_log_pid_context(struct audit_context *context, pid_t pid,
 	char *ctx = NULL;
 	u32 len;
 	int rc = 0;
-	struct security_operations *sop;
+	struct security_operations *sop = NULL;
 
 	ab = audit_log_start(context, GFP_KERNEL, AUDIT_OBJ_PID);
 	if (!ab)
@@ -1458,7 +1458,7 @@ static void show_special(struct audit_context *context, int *call_panic)
 		if (!lsm_zero_secid(osid)) {
 			char *ctx = NULL;
 			u32 len;
-			struct security_operations *sop;
+			struct security_operations *sop = NULL;
 			if (security_secid_to_secctx(osid, &ctx, &len, &sop)) {
 				audit_log_format(ab, " osc=%u", 0);
 				*call_panic = 1;

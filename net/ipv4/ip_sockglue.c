@@ -110,7 +110,7 @@ static void ip_cmsg_recv_security(struct msghdr *msg, struct sk_buff *skb)
 	u32 seclen;
 	struct secids secid;
 	int err;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_peersec_ops();
 
 	err = security_socket_getpeersec_dgram(NULL, skb, &secid);
 	if (err)

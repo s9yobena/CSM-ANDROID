@@ -5574,7 +5574,7 @@ struct security_operations selinux_ops = {
 					LSM_FEATURE_NETLABEL |
 					LSM_FEATURE_XFRM |
 					LSM_FEATURE_SECMARK |
-					LSM_FEATURE_SECIDS,
+					LSM_FEATURE_PEERSEC,
 
 	.binder_set_context_mgr =	selinux_binder_set_context_mgr,
 	.binder_transaction =		selinux_binder_transaction,

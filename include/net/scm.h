@@ -86,7 +86,7 @@ static inline void scm_passec(struct socket *sock, struct msghdr *msg, struct sc
 	char *secdata;
 	u32 seclen;
 	int err;
-	struct security_operations *sop;
+	struct security_operations *sop = peersec_ops;
 
 	if (test_bit(SOCK_PASSSEC, &sock->flags)) {
 		err = security_secid_to_secctx(&scm->secid, &secdata,

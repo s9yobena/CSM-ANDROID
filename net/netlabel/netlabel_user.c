@@ -101,7 +101,7 @@ struct audit_buffer *netlbl_audit_start_common(int type,
 	struct audit_buffer *audit_buf;
 	char *secctx;
 	u32 secctx_len;
-	struct security_operations *sop;
+	struct security_operations *sop = lsm_netlbl_ops();
 
 	if (audit_enabled == 0)
 		return NULL;

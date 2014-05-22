@@ -224,17 +224,49 @@ config SECMARK_LSM
 	help
 	  The name of the LSM to use with the networking secmark
 
-config SECURITY_PLAIN_CONTEXT
-	bool "Backward compatable contexts without lsm='value' formatting"
-	depends on SECURITY_SELINUX || SECURITY_SMACK
-	default y
+choice
+	depends on SECURITY && (SECURITY_SELINUX || SECURITY_SMACK)
+	prompt "Peersec LSM"
+	default PEERSEC_SECURITY_FIRST
+
 	help
-	  Without this value set security context strings will
-	  include the name of the lsm with which they are associated
-	  even if there is only one LSM that uses security contexts.
-	  This matches the way contexts were handled before it was
-	  possible to have multiple concurrent security modules.
-	  If you are unsure how to answer this question, answer Y.
+	  Select the security module that will send attribute
+	  information in IP header options.
+	  Most SELinux configurations do not take advantage
+	  of Netlabel, while all Smack configurations do. Unless
+	  there is a need to do otherwise chose Smack in preference
+	  to SELinux.
+
+	config PEERSEC_SECURITY_FIRST
+		bool "First LSM providing for SO_PEERSEC"
+		help
+		  Provide the first available LSM's information with SO_PEERSEC
+
+	config PEERSEC_SECURITY_ALL
+		bool "Use lsm='value'lsm='value' format"
+		help
+		  Provide all available security information in SO_PEERSEC
+
+	config PEERSEC_SECURITY_SELINUX
+		bool "SELinux" if SECURITY_SELINUX=y
+		help
+		  Provide SELinux context with SO_PEERSEC
+
+	config PEERSEC_SECURITY_SMACK
+		bool "Smack" if SECURITY_SMACK=y
+		help
+		  Provide Smack labels with SO_PEERSEC
+
+endchoice
+
+config PEERSEC_LSM
+	string
+	default "smack" if PEERSEC_SECURITY_SMACK
+	default "selinux" if PEERSEC_SECURITY_SELINUX
+	default "(all)" if PEERSEC_SECURITY_ALL
+	default "(first)"
+	help
+	  The name of the LSM to use with Netlabel
 
 config SECURITY_PATH
 	bool "Security hooks for pathname based access control"

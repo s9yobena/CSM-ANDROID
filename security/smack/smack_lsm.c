@@ -3493,7 +3493,7 @@ struct security_operations smack_ops = {
 	.name =				"smack",
 	.features =			LSM_FEATURE_PRESENT |
 					LSM_FEATURE_NETLABEL |
-					LSM_FEATURE_SECIDS,
+					LSM_FEATURE_PEERSEC,
 
 	.ptrace_access_check =		smack_ptrace_access_check,
 	.ptrace_traceme =		smack_ptrace_traceme,
