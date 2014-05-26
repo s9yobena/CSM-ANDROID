@@ -1056,7 +1056,7 @@ static void audit_list_rules(int pid, int seq, struct sk_buff_head *q)
 }
 
 /* Log rule additions and removals */
-static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
+static void audit_log_rule_change(uid_t loginuid, u32 sessionid, struct secids *sid,
 				  char *action, struct audit_krule *rule,
 				  int res)
 {
@@ -1074,7 +1074,7 @@ static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
 		char *ctx = NULL;
 		u32 len;
 		if (security_secid_to_secctx(sid, &ctx, &len, &sop))
-			audit_log_format(ab, " ssid=%u", sid);
+			audit_log_format(ab, " ssid=%u", 0);
 		else {
 			audit_log_format(ab, " subj=%s", ctx);
 			security_release_secctx(ctx, len, sop);
@@ -1100,7 +1100,7 @@ static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
  * @sid: SE Linux Security ID of sender
  */
 int audit_receive_filter(int type, int pid, int uid, int seq, void *data,
-			 size_t datasz, uid_t loginuid, u32 sessionid, u32 sid)
+			 size_t datasz, uid_t loginuid, u32 sessionid, struct secids *sid)
 {
 	struct task_struct *tsk;
 	struct audit_netlink_list *dest;

@@ -1135,10 +1135,10 @@ void audit_log_task_context(struct audit_buffer *ab)
 	char *ctx = NULL;
 	unsigned len;
 	int error;
-	u32 sid;
-	struct security_operation *sop;
+	struct secids *sid;
+	struct security_operations *sop;
 
-	security_task_getsecid(current, &sid);
+	security_task_getsecid(current, sid);
 	if (!sid)
 		return;
 

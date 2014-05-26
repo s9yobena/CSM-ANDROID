@@ -265,7 +265,7 @@ void audit_log_lost(const char *message)
 }
 
 static int audit_log_config_change(char *function_name, int new, int old,
-				   uid_t loginuid, u32 sessionid, u32 sid,
+				   uid_t loginuid, u32 sessionid, struct secids *sid,
 				   int allow_changes)
 {
 	struct audit_buffer *ab;
@@ -281,7 +281,7 @@ static int audit_log_config_change(char *function_name, int new, int old,
 
 		rc = security_secid_to_secctx(sid, &ctx, &len, &sop);
 		if (rc) {
-			audit_log_format(ab, " sid=%u", sid);
+			audit_log_format(ab, " sid=%u", 0);
 			allow_changes = 0; /* Something weird, deny request */
 		} else {
 			audit_log_format(ab, " subj=%s", ctx);
@@ -295,7 +295,7 @@ static int audit_log_config_change(char *function_name, int new, int old,
 
 static int audit_do_config_change(char *function_name, int *to_change,
 				  int new, uid_t loginuid, u32 sessionid,
-				  u32 sid)
+				  struct secids *sid)
 {
 	int allow_changes, rc = 0, old = *to_change;
 
@@ -322,20 +322,20 @@ static int audit_do_config_change(char *function_name, int *to_change,
 }
 
 static int audit_set_rate_limit(int limit, uid_t loginuid, u32 sessionid,
-				u32 sid)
+				struct secids *sid)
 {
 	return audit_do_config_change("audit_rate_limit", &audit_rate_limit,
 				      limit, loginuid, sessionid, sid);
 }
 
 static int audit_set_backlog_limit(int limit, uid_t loginuid, u32 sessionid,
-				   u32 sid)
+				   struct secids *sid)
 {
 	return audit_do_config_change("audit_backlog_limit", &audit_backlog_limit,
 				      limit, loginuid, sessionid, sid);
 }
 
-static int audit_set_enabled(int state, uid_t loginuid, u32 sessionid, u32 sid)
+static int audit_set_enabled(int state, uid_t loginuid, u32 sessionid, struct secids *sid)
 {
 	int rc;
 	if (state < AUDIT_OFF || state > AUDIT_LOCKED)
@@ -350,7 +350,7 @@ static int audit_set_enabled(int state, uid_t loginuid, u32 sessionid, u32 sid)
 	return rc;
 }
 
-static int audit_set_failure(int state, uid_t loginuid, u32 sessionid, u32 sid)
+static int audit_set_failure(int state, uid_t loginuid, u32 sessionid, struct secids *sid)
 {
 	if (state != AUDIT_FAIL_SILENT
 	    && state != AUDIT_FAIL_PRINTK
@@ -621,7 +621,7 @@ static int audit_netlink_ok(struct sk_buff *skb, u16 msg_type)
 
 static int audit_log_common_recv_msg(struct audit_buffer **ab, u16 msg_type,
 				     u32 pid, u32 uid, uid_t auid, u32 ses,
-				     u32 sid)
+				     struct secids *sid)
 {
 	int rc = 0;
 	char *ctx = NULL;
@@ -639,7 +639,7 @@ static int audit_log_common_recv_msg(struct audit_buffer **ab, u16 msg_type,
 	if (sid) {
 		rc = security_secid_to_secctx(sid, &ctx, &len, &sop);
 		if (rc)
-			audit_log_format(*ab, " ssid=%u", sid);
+			audit_log_format(*ab, " ssid=%u", 0);
 		else {
 			audit_log_format(*ab, " subj=%s", ctx);
 			security_release_secctx(ctx, len, sop);
@@ -651,7 +651,8 @@ static int audit_log_common_recv_msg(struct audit_buffer **ab, u16 msg_type,
 
 static int audit_receive_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
-	u32			uid, pid, seq, sid;
+	u32			uid, pid, seq;
+	struct secids           *sid;
 	void			*data;
 	struct audit_status	*status_get, status_set;
 	int			err;
@@ -682,7 +683,7 @@ static int audit_receive_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	uid  = NETLINK_CREDS(skb)->uid;
 	loginuid = audit_get_loginuid(current);
 	sessionid = audit_get_sessionid(current);
-	security_task_getsecid(current, &sid);
+	security_task_getsecid(current, sid);
 	seq  = nlh->nlmsg_seq;
 	data = NLMSG_DATA(nlh);
 
