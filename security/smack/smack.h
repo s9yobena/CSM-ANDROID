@@ -16,6 +16,7 @@
 #include <linux/capability.h>
 #include <linux/spinlock.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/in.h>
 #include <net/netlabel.h>
 #include <linux/list.h>
@@ -240,7 +241,7 @@ extern struct security_operations smack_ops;
  */
 static inline int smk_inode_transmutable(const struct inode *isp)
 {
-	struct inode_smack *sip = isp->i_security;
+	struct inode_smack *sip = lsm_get_inode(isp, &smack_ops);
 	return (sip->smk_flags & SMK_INODE_TRANSMUTE) != 0;
 }
 
@@ -249,7 +250,7 @@ static inline int smk_inode_transmutable(const struct inode *isp)
  */
 static inline char *smk_of_inode(const struct inode *isp)
 {
-	struct inode_smack *sip = isp->i_security;
+	struct inode_smack *sip = lsm_get_inode(isp, &smack_ops);
 	return sip->smk_inode;
 }
 
@@ -274,7 +275,7 @@ static inline char *smk_of_forked(const struct task_smack *tsp)
  */
 static inline char *smk_of_current(void)
 {
-	return smk_of_task(current_security());
+	return smk_of_task(lsm_get_cred(current_cred(), &smack_ops));
 }
 
 /*

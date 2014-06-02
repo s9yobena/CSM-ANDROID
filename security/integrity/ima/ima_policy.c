@@ -184,7 +184,7 @@ static bool ima_match_rules(struct ima_rule_entry *rule,
 		return false;
 	for (i = 0; i < MAX_LSM_RULES; i++) {
 		int rc = 0;
-		u32 osid, sid;
+		struct secids osid, sid;
 		int retried = 0;
 
 		if (!rule->lsm[i].rule)
@@ -195,7 +195,7 @@ retry:
 		case LSM_OBJ_ROLE:
 		case LSM_OBJ_TYPE:
 			security_inode_getsecid(inode, &osid);
-			rc = security_filter_rule_match(osid,
+			rc = security_filter_rule_match(&osid,
 							rule->lsm[i].type,
 							Audit_equal,
 							rule->lsm[i].rule,
@@ -205,7 +205,7 @@ retry:
 		case LSM_SUBJ_ROLE:
 		case LSM_SUBJ_TYPE:
 			security_task_getsecid(tsk, &sid);
-			rc = security_filter_rule_match(sid,
+			rc = security_filter_rule_match(&sid,
 							rule->lsm[i].type,
 							Audit_equal,
 							rule->lsm[i].rule,

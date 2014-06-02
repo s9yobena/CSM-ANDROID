@@ -108,19 +108,21 @@ static void ip_cmsg_recv_retopts(struct msghdr *msg, struct sk_buff *skb)
 static void ip_cmsg_recv_security(struct msghdr *msg, struct sk_buff *skb)
 {
 	char *secdata;
-	u32 seclen, secid;
+	u32 seclen;
+	struct secids secid;
 	int err;
+	struct security_operations *sop = lsm_peersec_ops();
 
 	err = security_socket_getpeersec_dgram(NULL, skb, &secid);
 	if (err)
 		return;
 
-	err = security_secid_to_secctx(secid, &secdata, &seclen);
+	err = security_secid_to_secctx(&secid, &secdata, &seclen, &sop);
 	if (err)
 		return;
 
 	put_cmsg(msg, SOL_IP, SCM_SECURITY, seclen, secdata);
-	security_release_secctx(secdata, seclen);
+	security_release_secctx(secdata, seclen, sop);
 }
 
 static void ip_cmsg_recv_dstaddr(struct msghdr *msg, struct sk_buff *skb)

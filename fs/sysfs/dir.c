@@ -278,7 +278,8 @@ void release_sysfs_dirent(struct sysfs_dirent * sd)
 		kfree(sd->s_name);
 	if (sd->s_iattr && sd->s_iattr->ia_secdata)
 		security_release_secctx(sd->s_iattr->ia_secdata,
-					sd->s_iattr->ia_secdata_len);
+					sd->s_iattr->ia_secdata_len,
+					sd->s_iattr->ia_sop);
 	kfree(sd->s_iattr);
 	sysfs_free_ino(sd->s_ino);
 	kmem_cache_free(sysfs_dir_cachep, sd);

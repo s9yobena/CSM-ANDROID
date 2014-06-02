@@ -35,6 +35,7 @@
 #include <linux/audit.h>
 #include <linux/tty.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/gfp.h>
 #include <net/sock.h>
 #include <net/netlink.h>
@@ -100,6 +101,7 @@ struct audit_buffer *netlbl_audit_start_common(int type,
 	struct audit_buffer *audit_buf;
 	char *secctx;
 	u32 secctx_len;
+	struct security_operations *sop = lsm_netlbl_ops();
 
 	if (audit_enabled == 0)
 		return NULL;
@@ -112,12 +114,12 @@ struct audit_buffer *netlbl_audit_start_common(int type,
 			 from_kuid(&init_user_ns, audit_info->loginuid),
 			 audit_info->sessionid);
 
-	if (audit_info->secid != 0 &&
-	    security_secid_to_secctx(audit_info->secid,
+	if (lsm_get_secid(&audit_info->secid, lsm_netlbl_order()) &&
+	    security_secid_to_secctx(&audit_info->secid,
 				     &secctx,
-				     &secctx_len) == 0) {
+				     &secctx_len, &sop) == 0) {
 		audit_log_format(audit_buf, " subj=%s", secctx);
-		security_release_secctx(secctx, secctx_len);
+		security_release_secctx(secctx, secctx_len, sop);
 	}
 
 	return audit_buf;

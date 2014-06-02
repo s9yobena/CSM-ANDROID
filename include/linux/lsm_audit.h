@@ -69,18 +69,15 @@ struct common_audit_data {
 #endif
 		char *kmod_name;
 	} u;
-	/* this union contains LSM specific data */
-	union {
 #ifdef CONFIG_SECURITY_SMACK
-		struct smack_audit_data *smack_audit_data;
+	struct smack_audit_data *smack_audit_data;
 #endif
 #ifdef CONFIG_SECURITY_SELINUX
-		struct selinux_audit_data *selinux_audit_data;
+	struct selinux_audit_data *selinux_audit_data;
 #endif
 #ifdef CONFIG_SECURITY_APPARMOR
-		struct apparmor_audit_data *apparmor_audit_data;
+	struct apparmor_audit_data *apparmor_audit_data;
 #endif
-	}; /* per LSM data pointer union */
 };
 
 #define v4info fam.v4

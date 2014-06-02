@@ -19,6 +19,7 @@
 #include <linux/binfmts.h>
 #include <linux/coredump.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/syscalls.h>
 #include <linux/ptrace.h>
 #include <linux/signal.h>
@@ -789,6 +790,7 @@ static int check_kill_permission(int sig, struct siginfo *info,
 {
 	struct pid *sid;
 	int error;
+	struct secids secid;
 
 	if (!valid_signal(sig))
 		return -EINVAL;
@@ -816,7 +818,8 @@ static int check_kill_permission(int sig, struct siginfo *info,
 		}
 	}
 
-	return security_task_kill(t, info, sig, 0);
+	lsm_init_secid(&secid, 0, -1);
+	return security_task_kill(t, info, sig, &secid);
 }
 
 /**
@@ -1390,7 +1393,7 @@ static int kill_as_cred_perm(const struct cred *cred,
 
 /* like kill_pid_info(), but doesn't use uid/euid of "current" */
 int kill_pid_info_as_cred(int sig, struct siginfo *info, struct pid *pid,
-			 const struct cred *cred, u32 secid)
+			 const struct cred *cred, struct secids *secid)
 {
 	int ret = -EINVAL;
 	struct task_struct *p;

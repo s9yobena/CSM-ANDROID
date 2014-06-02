@@ -165,7 +165,8 @@ static void smk_netlabel_audit_set(struct netlbl_audit *nap)
 {
 	nap->loginuid = audit_get_loginuid(current);
 	nap->sessionid = audit_get_sessionid(current);
-	nap->secid = smack_to_secid(smk_of_current());
+	lsm_init_secid(&nap->secid, smack_to_secid(smk_of_current()),
+			lsm_netlbl_order());
 }
 
 /*
@@ -1236,12 +1237,12 @@ static ssize_t smk_write_netlbladdr(struct file *file, const char __user *buf,
 	}
 	smk_netlabel_audit_set(&audit_info);
 
+	rc = 0;
 	if (found == 0) {
 		skp = kzalloc(sizeof(*skp), GFP_KERNEL);
 		if (skp == NULL)
 			rc = -ENOMEM;
 		else {
-			rc = 0;
 			skp->smk_host.sin_addr.s_addr = newname.sin_addr.s_addr;
 			skp->smk_mask.s_addr = mask.s_addr;
 			skp->smk_label = sp;
@@ -1250,12 +1251,11 @@ static ssize_t smk_write_netlbladdr(struct file *file, const char __user *buf,
 	} else {
 		/* we delete the unlabeled entry, only if the previous label
 		 * wasn't the special CIPSO option */
-		if (skp->smk_label != smack_cipso_option)
+		if (skp->smk_label != smack_cipso_option &&
+		    netlbl_lsm_owner(&smack_ops))
 			rc = netlbl_cfg_unlbl_static_del(&init_net, NULL,
 					&skp->smk_host.sin_addr, &skp->smk_mask,
 					PF_INET, &audit_info);
-		else
-			rc = 0;
 		skp->smk_label = sp;
 	}
 
@@ -1264,7 +1264,7 @@ static ssize_t smk_write_netlbladdr(struct file *file, const char __user *buf,
 	 * this host so that incoming packets get labeled.
 	 * but only if we didn't get the special CIPSO option
 	 */
-	if (rc == 0 && sp != smack_cipso_option)
+	if (rc == 0 && sp != smack_cipso_option && netlbl_lsm_owner(&smack_ops))
 		rc = netlbl_cfg_unlbl_static_add(&init_net, NULL,
 			&skp->smk_host.sin_addr, &skp->smk_mask, PF_INET,
 			smack_to_secid(skp->smk_label), &audit_info);
@@ -1645,7 +1645,7 @@ static ssize_t smk_write_onlycap(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 {
 	char *data;
-	char *sp = smk_of_task(current->cred->security);
+	char *sp = smk_of_task(lsm_get_cred(current_cred(), &smack_ops));
 	int rc = count;
 
 	if (!smack_privileged(CAP_MAC_ADMIN))
@@ -1759,14 +1759,14 @@ static const struct file_operations smk_logging_ops = {
 
 static void *load_self_seq_start(struct seq_file *s, loff_t *pos)
 {
-	struct task_smack *tsp = current_security();
+	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
 
 	return smk_seq_start(s, pos, &tsp->smk_rules);
 }
 
 static void *load_self_seq_next(struct seq_file *s, void *v, loff_t *pos)
 {
-	struct task_smack *tsp = current_security();
+	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
 
 	return smk_seq_next(s, v, pos, &tsp->smk_rules);
 }
@@ -1813,7 +1813,7 @@ static int smk_open_load_self(struct inode *inode, struct file *file)
 static ssize_t smk_write_load_self(struct file *file, const char __user *buf,
 			      size_t count, loff_t *ppos)
 {
-	struct task_smack *tsp = current_security();
+	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
 
 	return smk_write_rules_list(file, buf, count, ppos, &tsp->smk_rules,
 				    &tsp->smk_rules_lock, SMK_FIXED24_FMT);
@@ -1968,14 +1968,14 @@ static const struct file_operations smk_load2_ops = {
 
 static void *load_self2_seq_start(struct seq_file *s, loff_t *pos)
 {
-	struct task_smack *tsp = current_security();
+	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
 
 	return smk_seq_start(s, pos, &tsp->smk_rules);
 }
 
 static void *load_self2_seq_next(struct seq_file *s, void *v, loff_t *pos)
 {
-	struct task_smack *tsp = current_security();
+	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
 
 	return smk_seq_next(s, v, pos, &tsp->smk_rules);
 }
@@ -2021,7 +2021,7 @@ static int smk_open_load_self2(struct inode *inode, struct file *file)
 static ssize_t smk_write_load_self2(struct file *file, const char __user *buf,
 			      size_t count, loff_t *ppos)
 {
-	struct task_smack *tsp = current_security();
+	struct task_smack *tsp = lsm_get_cred(current_cred(), &smack_ops);
 
 	return smk_write_rules_list(file, buf, count, ppos, &tsp->smk_rules,
 				    &tsp->smk_rules_lock, SMK_LONG_FMT);

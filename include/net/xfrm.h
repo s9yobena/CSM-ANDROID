@@ -13,6 +13,7 @@
 #include <linux/mutex.h>
 #include <linux/audit.h>
 #include <linux/slab.h>
+#include <linux/lsm.h>
 
 #include <net/sock.h>
 #include <net/dst.h>
@@ -699,13 +700,17 @@ static inline void xfrm_audit_helper_usrinfo(kuid_t auid, u32 ses, u32 secid,
 {
 	char *secctx;
 	u32 secctx_len;
+	struct secids secids;
+	struct security_operations *sop = lsm_peersec_ops();
 
 	audit_log_format(audit_buf, " auid=%u ses=%u",
 			 from_kuid(&init_user_ns, auid), ses);
+	lsm_init_secid(&secids, secid, lsm_xfrm_order());
 	if (secid != 0 &&
-	    security_secid_to_secctx(secid, &secctx, &secctx_len) == 0) {
+	    security_secid_to_secctx(&secids, &secctx, &secctx_len,
+					&sop) == 0) {
 		audit_log_format(audit_buf, " subj=%s", secctx);
-		security_release_secctx(secctx, secctx_len);
+		security_release_secctx(secctx, secctx_len, sop);
 	} else
 		audit_log_task_context(audit_buf);
 }

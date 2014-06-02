@@ -130,7 +130,9 @@ out:
 	return error;
 }
 
-static int sysfs_sd_setsecdata(struct sysfs_dirent *sd, void **secdata, u32 *secdata_len)
+static int sysfs_sd_setsecdata(struct sysfs_dirent *sd, void **secdata,
+				u32 *secdata_len,
+				struct security_operations *sop)
 {
 	struct sysfs_inode_attrs *iattrs;
 	void *old_secdata;
@@ -148,6 +150,7 @@ static int sysfs_sd_setsecdata(struct sysfs_dirent *sd, void **secdata, u32 *sec
 
 	iattrs->ia_secdata = *secdata;
 	iattrs->ia_secdata_len = *secdata_len;
+	iattrs->ia_sop = sop;
 
 	*secdata = old_secdata;
 	*secdata_len = old_secdata_len;
@@ -161,6 +164,7 @@ int sysfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 	void *secdata;
 	int error;
 	u32 secdata_len = 0;
+	struct security_operations *sop;
 
 	if (!sd)
 		return -EINVAL;
@@ -172,16 +176,16 @@ int sysfs_setxattr(struct dentry *dentry, const char *name, const void *value,
 		if (error)
 			goto out;
 		error = security_inode_getsecctx(dentry->d_inode,
-						&secdata, &secdata_len);
+						&secdata, &secdata_len, &sop);
 		if (error)
 			goto out;
 
 		mutex_lock(&sysfs_mutex);
-		error = sysfs_sd_setsecdata(sd, &secdata, &secdata_len);
+		error = sysfs_sd_setsecdata(sd, &secdata, &secdata_len, sop);
 		mutex_unlock(&sysfs_mutex);
 
 		if (secdata)
-			security_release_secctx(secdata, secdata_len);
+			security_release_secctx(secdata, secdata_len, sop);
 	} else
 		return -EINVAL;
 out:

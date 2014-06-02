@@ -148,13 +148,15 @@ xattr_getsecurity(struct inode *inode, const char *name, void *value,
 {
 	void *buffer = NULL;
 	ssize_t len;
+	struct security_operations *sop;
 
 	if (!value || !size) {
-		len = security_inode_getsecurity(inode, name, &buffer, false);
+		len = security_inode_getsecurity(inode, name, &buffer, false,
+							&sop);
 		goto out_noalloc;
 	}
 
-	len = security_inode_getsecurity(inode, name, &buffer, true);
+	len = security_inode_getsecurity(inode, name, &buffer, true, &sop);
 	if (len < 0)
 		return len;
 	if (size < len) {
@@ -163,7 +165,7 @@ xattr_getsecurity(struct inode *inode, const char *name, void *value,
 	}
 	memcpy(value, buffer, len);
 out:
-	security_release_secctx(buffer, len);
+	security_release_secctx(buffer, len, sop);
 out_noalloc:
 	return len;
 }

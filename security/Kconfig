@@ -48,6 +48,44 @@ config SECURITY_NETWORK
 	  implement socket and networking access controls.
 	  If you are unsure how to answer this question, answer N.
 
+choice
+	depends on SECURITY && NETLABEL
+	prompt "Netlabel LSM"
+	default NETLABEL_SECURITY_FIRST
+
+	help
+	  Select the security module that will send attribute
+	  information in IP header options.
+	  Most SELinux configurations do not take advantage
+	  of Netlabel, while all Smack configurations do. Unless
+	  there is a need to do otherwise chose Smack in preference
+	  to SELinux.
+
+	config NETLABEL_SECURITY_FIRST
+		bool "First LSM using NetLabel"
+		help
+		  Send SELinux MLS information in IP packet headers
+
+	config NETLABEL_SECURITY_SELINUX
+		bool "SELinux" if SECURITY_SELINUX=y
+		help
+		  Send SELinux MLS information in IP packet headers
+
+	config NETLABEL_SECURITY_SMACK
+		bool "Smack" if SECURITY_SMACK=y
+		help
+		  Send Smack labels in IP packet headers
+
+endchoice
+
+config NETLABEL_LSM
+	string
+	default "smack" if NETLABEL_SECURITY_SMACK
+	default "selinux" if NETLABEL_SECURITY_SELINUX
+	default "(first)"
+	help
+	  The name of the LSM to use with Netlabel
+
 config SECURITY_NETWORK_XFRM
 	bool "XFRM (IPSec) Networking Security Hooks"
 	depends on XFRM && SECURITY_NETWORK
@@ -60,6 +98,108 @@ config SECURITY_NETWORK_XFRM
 	  to communicate unlabelled data can send without using
 	  IPSec.
 	  If you are unsure how to answer this question, answer N.
+
+choice
+	depends on XFRM && SECURITY_NETWORK && SECURITY_NETWORK_XFRM
+	prompt "XFRM LSM"
+	default XFRM_SECURITY_FIRST
+
+	help
+	  Select the security module that will send attribute
+	  information based on IPSec policy
+	  Most SELinux configurations take advantage of XFRM.
+
+	config XFRM_SECURITY_FIRST
+		bool "First LSM using XFRM"
+		help
+		  Use first configured IPSec policy
+
+	config XFRM_SECURITY_SELINUX
+		bool "SELinux" if SECURITY_SELINUX=y
+		help
+		  Use SELinux IPSec policy
+
+endchoice
+
+config XFRM_LSM
+	string
+	default "selinux" if XFRM_SECURITY_SELINUX
+	default "(first)"
+	help
+	  The name of the LSM to use with XFRM and IPSec policy
+
+choice
+	depends on SECURITY_NETWORK
+	prompt "secmark LSM"
+	default SECMARK_SECURITY_FIRST
+
+	help
+	  Select the security module that will send attribute
+	  information based on secmark policy
+	  Most SELinux configurations take advantage of secmark.
+
+	config SECMARK_SECURITY_FIRST
+		bool "First LSM using secmark"
+		help
+		  Use first configured secmark policy
+
+	config SECMARK_SECURITY_SELINUX
+		bool "SELinux" if SECURITY_SELINUX=y
+		help
+		  Use SELinux secmark policy
+
+endchoice
+
+config SECMARK_LSM
+	string
+	default "selinux" if SECMARK_SECURITY_SELINUX
+	default "(first)"
+	help
+	  The name of the LSM to use with the networking secmark
+
+choice
+	depends on SECURITY && (SECURITY_SELINUX || SECURITY_SMACK)
+	prompt "Peersec LSM"
+	default PEERSEC_SECURITY_FIRST
+
+	help
+	  Select the security module that will send attribute
+	  information in IP header options.
+	  Most SELinux configurations do not take advantage
+	  of Netlabel, while all Smack configurations do. Unless
+	  there is a need to do otherwise chose Smack in preference
+	  to SELinux.
+
+	config PEERSEC_SECURITY_FIRST
+		bool "First LSM providing for SO_PEERSEC"
+		help
+		  Provide the first available LSM's information with SO_PEERSEC
+
+	config PEERSEC_SECURITY_ALL
+		bool "Use lsm='value'lsm='value' format"
+		help
+		  Provide all available security information in SO_PEERSEC
+
+	config PEERSEC_SECURITY_SELINUX
+		bool "SELinux" if SECURITY_SELINUX=y
+		help
+		  Provide SELinux context with SO_PEERSEC
+
+	config PEERSEC_SECURITY_SMACK
+		bool "Smack" if SECURITY_SMACK=y
+		help
+		  Provide Smack labels with SO_PEERSEC
+
+endchoice
+
+config PEERSEC_LSM
+	string
+	default "smack" if PEERSEC_SECURITY_SMACK
+	default "selinux" if PEERSEC_SECURITY_SELINUX
+	default "(all)" if PEERSEC_SECURITY_ALL
+	default "(first)"
+	help
+	  The name of the LSM to use with Netlabel
 
 config SECURITY_PATH
 	bool "Security hooks for pathname based access control"
@@ -123,49 +263,81 @@ source security/tomoyo/Kconfig
 source security/apparmor/Kconfig
 source security/yama/Kconfig
 
+config SECURITY_LSM_MAX
+	int "Maximum allowed security modules (1 to 12)"
+	depends on SECURITY
+	default 6
+	range 1 12
+	help
+	  The number of security modules that can be loaded.
+	  The default value allows for all of the upstream modules.
+	  The maximum allowed value is 12.
+
+config DEFAULT_SECURITY
+	string "Ordered list of LSMs to register"
+	depends on SECURITY
+	default "(all)"
+	help
+	  A comma separated list of LSMs to register.
+	  LSMs that are not configured that are listed
+	  will be ignored. If the "security=" option is
+	  specified in the boot line it will override
+	  this value. If the value is "(all)" all LSMs
+	  configured in the kernel will be loaded in
+	  the order they request registration.
+
 source security/integrity/Kconfig
 
 choice
-	prompt "Default security module"
-	default DEFAULT_SECURITY_SELINUX if SECURITY_SELINUX
-	default DEFAULT_SECURITY_SMACK if SECURITY_SMACK
-	default DEFAULT_SECURITY_TOMOYO if SECURITY_TOMOYO
-	default DEFAULT_SECURITY_APPARMOR if SECURITY_APPARMOR
-	default DEFAULT_SECURITY_YAMA if SECURITY_YAMA
-	default DEFAULT_SECURITY_DAC
+	depends on SECURITY
+	prompt "Presented security module"
+	default PRESENT_SECURITY_FIRST
 
 	help
-	  Select the security module that will be used by default if the
-	  kernel parameter security= is not specified.
+	  Select the security module that will be presented
+	  with the /proc/*/attr interface.
+	  If not specified the first registered LSM that uses
+	  the /proc/*/attr interface will be chosen.
 
-	config DEFAULT_SECURITY_SELINUX
+	config PRESENT_SECURITY_SELINUX
 		bool "SELinux" if SECURITY_SELINUX=y
+		help
+		  Present SELinux context information in the
+		  files in /proc/*/attr
 
-	config DEFAULT_SECURITY_SMACK
+	config PRESENT_SECURITY_SMACK
 		bool "Simplified Mandatory Access Control" if SECURITY_SMACK=y
+		help
+		  Present Smack process label information
+		  in /proc/*/attr/current
 
-	config DEFAULT_SECURITY_TOMOYO
-		bool "TOMOYO" if SECURITY_TOMOYO=y
-
-	config DEFAULT_SECURITY_APPARMOR
+	config PRESENT_SECURITY_APPARMOR
 		bool "AppArmor" if SECURITY_APPARMOR=y
+		help
+		  Present AppArmor context information in the
+		  files in /proc/*/attr
 
-	config DEFAULT_SECURITY_YAMA
-		bool "Yama" if SECURITY_YAMA=y
+	config PRESENT_SECURITY_FIRST
+		bool "First LSM using /proc/.../attr"
+		help
+		  Present information from the first LSM that uses
+		  /proc/*/attr
 
-	config DEFAULT_SECURITY_DAC
-		bool "Unix Discretionary Access Controls"
+	config PRESENT_SECURITY_NONE
+		bool "Present Nothing"
+		help
+		  Do not present LSM information in /proc/*/attr
 
 endchoice
 
-config DEFAULT_SECURITY
+config PRESENT_SECURITY
 	string
-	default "selinux" if DEFAULT_SECURITY_SELINUX
-	default "smack" if DEFAULT_SECURITY_SMACK
-	default "tomoyo" if DEFAULT_SECURITY_TOMOYO
-	default "apparmor" if DEFAULT_SECURITY_APPARMOR
-	default "yama" if DEFAULT_SECURITY_YAMA
-	default "" if DEFAULT_SECURITY_DAC
+	default "selinux" if PRESENT_SECURITY_SELINUX
+	default "smack" if PRESENT_SECURITY_SMACK
+	default "apparmor" if PRESENT_SECURITY_APPARMOR
+	default "(first)" if PRESENT_SECURITY_FIRST
+	default "(none)"
+	help
+	  The name of the LSM to present in /proc/.../attr
 
 endmenu
-

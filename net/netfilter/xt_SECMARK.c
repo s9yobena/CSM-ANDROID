@@ -15,6 +15,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 #include <linux/module.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/skbuff.h>
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter/xt_SECMARK.h>
@@ -52,24 +53,28 @@ secmark_tg(struct sk_buff *skb, const struct xt_action_param *par)
 static int checkentry_lsm(struct xt_secmark_target_info *info)
 {
 	int err;
+	struct secids secid;
 
 	info->secctx[SECMARK_SECCTX_MAX - 1] = '\0';
 	info->secid = 0;
 
 	err = security_secctx_to_secid(info->secctx, strlen(info->secctx),
-				       &info->secid);
+				       &secid, lsm_secmark_ops());
 	if (err) {
 		if (err == -EINVAL)
-			pr_info("invalid security context \'%s\'\n", info->secctx);
+			pr_info("invalid security context \'%s\'\n",
+					info->secctx);
 		return err;
 	}
 
+	info->secid = lsm_get_secid(&secid, lsm_secmark_order());
 	if (!info->secid) {
-		pr_info("unable to map security context \'%s\'\n", info->secctx);
+		pr_info("unable to map security context \'%s\'\n",
+				info->secctx);
 		return -ENOENT;
 	}
 
-	err = security_secmark_relabel_packet(info->secid);
+	err = security_secmark_relabel_packet(&secid);
 	if (err) {
 		pr_info("unable to obtain relabeling permission\n");
 		return err;
