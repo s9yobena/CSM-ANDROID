@@ -39,9 +39,10 @@ struct sysfs_elem_bin_attr {
 };
 
 struct sysfs_inode_attrs {
-	struct iattr	ia_iattr;
-	void		*ia_secdata;
-	u32		ia_secdata_len;
+	struct iattr			ia_iattr;
+	void				*ia_secdata;
+	u32				ia_secdata_len;
+	struct security_operations	*ia_sop;
 };
 
 /*

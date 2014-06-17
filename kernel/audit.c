@@ -57,6 +57,7 @@
 #include <linux/skbuff.h>
 #ifdef CONFIG_SECURITY
 #include <linux/security.h>
+#include <linux/lsm.h>
 #endif
 #include <linux/netlink.h>
 #include <linux/freezer.h>
@@ -106,7 +107,7 @@ static int	audit_backlog_wait_overflow = 0;
 /* The identity of the user shutting down the audit system. */
 uid_t		audit_sig_uid = -1;
 pid_t		audit_sig_pid = -1;
-u32		audit_sig_sid = 0;
+struct secids	audit_sig_sid;
 
 /* Records can be lost in several ways:
    0) [suppressed in audit_alloc]
@@ -269,6 +270,7 @@ static int audit_log_config_change(char *function_name, int new, int old,
 {
 	struct audit_buffer *ab;
 	int rc = 0;
+	struct security_operations *sop;
 
 	ab = audit_log_start(NULL, GFP_KERNEL, AUDIT_CONFIG_CHANGE);
 	audit_log_format(ab, "%s=%d old=%d auid=%u ses=%u", function_name, new,
@@ -277,13 +279,13 @@ static int audit_log_config_change(char *function_name, int new, int old,
 		char *ctx = NULL;
 		u32 len;
 
-		rc = security_secid_to_secctx(sid, &ctx, &len);
+		rc = security_secid_to_secctx(sid, &ctx, &len, &sop);
 		if (rc) {
 			audit_log_format(ab, " sid=%u", sid);
 			allow_changes = 0; /* Something weird, deny request */
 		} else {
 			audit_log_format(ab, " subj=%s", ctx);
-			security_release_secctx(ctx, len);
+			security_release_secctx(ctx, len, sop);
 		}
 	}
 	audit_log_format(ab, " res=%d", allow_changes);
@@ -624,6 +626,7 @@ static int audit_log_common_recv_msg(struct audit_buffer **ab, u16 msg_type,
 	int rc = 0;
 	char *ctx = NULL;
 	u32 len;
+	struct security_operations *sop;
 
 	if (!audit_enabled) {
 		*ab = NULL;
@@ -634,12 +637,12 @@ static int audit_log_common_recv_msg(struct audit_buffer **ab, u16 msg_type,
 	audit_log_format(*ab, "pid=%d uid=%u auid=%u ses=%u",
 			 pid, uid, auid, ses);
 	if (sid) {
-		rc = security_secid_to_secctx(sid, &ctx, &len);
+		rc = security_secid_to_secctx(sid, &ctx, &len, &sop);
 		if (rc)
 			audit_log_format(*ab, " ssid=%u", sid);
 		else {
-			audit_log_format(*ab, " subj=%s", ctx);
-			security_release_secctx(ctx, len);
+			audit_log_format(*ab, " subj=%s", ctx, sop);
+			security_release_secctx(ctx, len, sop);
 		}
 	}
 
@@ -659,6 +662,7 @@ static int audit_receive_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	struct audit_sig_info   *sig_data;
 	char			*ctx = NULL;
 	u32			len;
+	struct security_operations *sop = NULL;
 
 	err = audit_netlink_ok(skb, msg_type);
 	if (err)
@@ -854,22 +858,23 @@ static int audit_receive_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	}
 	case AUDIT_SIGNAL_INFO:
 		len = 0;
-		if (audit_sig_sid) {
-			err = security_secid_to_secctx(audit_sig_sid, &ctx, &len);
+		if (!lsm_zero_secid(&audit_sig_sid)) {
+			err = security_secid_to_secctx(&audit_sig_sid, &ctx, &len,
+						       &sop);
 			if (err)
 				return err;
 		}
 		sig_data = kmalloc(sizeof(*sig_data) + len, GFP_KERNEL);
 		if (!sig_data) {
-			if (audit_sig_sid)
-				security_release_secctx(ctx, len);
+			if (!lsm_zero_secid(&audit_sig_sid))
+				security_release_secctx(ctx, len, sop);
 			return -ENOMEM;
 		}
 		sig_data->uid = audit_sig_uid;
 		sig_data->pid = audit_sig_pid;
-		if (audit_sig_sid) {
+		if (!lsm_zero_secid(&audit_sig_sid)) {
 			memcpy(sig_data->ctx, ctx, len);
-			security_release_secctx(ctx, len);
+			security_release_secctx(ctx, len, sop);
 		}
 		audit_send_reply(NETLINK_CB(skb).pid, seq, AUDIT_SIGNAL_INFO,
 				0, 0, sig_data, sizeof(*sig_data) + len);
@@ -1494,6 +1499,7 @@ void audit_log_end(struct audit_buffer *ab)
 void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 	       const char *fmt, ...)
 {
+	struct security_operations *sop = NULL;
 	struct audit_buffer *ab;
 	va_list args;
 
@@ -1508,25 +1514,32 @@ void audit_log(struct audit_context *ctx, gfp_t gfp_mask, int type,
 
 #ifdef CONFIG_SECURITY
 /**
- * audit_log_secctx - Converts and logs SELinux context
+ * audit_log_secctx - Converts and logs security module(s) context
  * @ab: audit_buffer
  * @secid: security number
  *
  * This is a helper function that calls security_secid_to_secctx to convert
- * secid to secctx and then adds the (converted) SELinux context to the audit
- * log by calling audit_log_format, thus also preventing leak of internal secid
- * to userspace. If secid cannot be converted audit_panic is called.
+ * secid to secctx and then adds the (converted) security module context
+ * to the audit log by calling audit_log_format, thus also preventing leak
+ * of internal secid to userspace. If secid cannot be converted audit_panic
+ * is called.
+ *
+ * This function is only used to create contexts for secmarks.
+ * As such, it does not pass a struct secids.
  */
 void audit_log_secctx(struct audit_buffer *ab, u32 secid)
 {
 	u32 len;
 	char *secctx;
+	struct secids secids;
+	struct security_operations *sop = lsm_secmark_ops();
 
-	if (security_secid_to_secctx(secid, &secctx, &len)) {
+	lsm_init_secid(&secids, secid, lsm_secmark_order());
+	if (security_secid_to_secctx(&secids, &secctx, &len, &sop)) {
 		audit_panic("Cannot convert secid to context");
 	} else {
 		audit_log_format(ab, " obj=%s", secctx);
-		security_release_secctx(secctx, len);
+		security_release_secctx(secctx, len, sop);
 	}
 }
 EXPORT_SYMBOL(audit_log_secctx);

@@ -17,7 +17,7 @@
  */
 static int tomoyo_cred_alloc_blank(struct cred *new, gfp_t gfp)
 {
-	new->security = NULL;
+	lsm_set_cred(new, NULL, &tomoyo_ops);
 	return 0;
 }
 
@@ -33,8 +33,8 @@ static int tomoyo_cred_alloc_blank(struct cred *new, gfp_t gfp)
 static int tomoyo_cred_prepare(struct cred *new, const struct cred *old,
 			       gfp_t gfp)
 {
-	struct tomoyo_domain_info *domain = old->security;
-	new->security = domain;
+	struct tomoyo_domain_info *domain = lsm_get_cred(old, &tomoyo_ops);
+	lsm_set_cred(new, domain, &tomoyo_ops);
 	if (domain)
 		atomic_inc(&domain->users);
 	return 0;
@@ -58,7 +58,7 @@ static void tomoyo_cred_transfer(struct cred *new, const struct cred *old)
  */
 static void tomoyo_cred_free(struct cred *cred)
 {
-	struct tomoyo_domain_info *domain = cred->security;
+	struct tomoyo_domain_info *domain = lsm_get_cred(cred, &tomoyo_ops);
 	if (domain)
 		atomic_dec(&domain->users);
 }
@@ -72,12 +72,6 @@ static void tomoyo_cred_free(struct cred *cred)
  */
 static int tomoyo_bprm_set_creds(struct linux_binprm *bprm)
 {
-	int rc;
-
-	rc = cap_bprm_set_creds(bprm);
-	if (rc)
-		return rc;
-
 	/*
 	 * Do only if this function is called for the first time of an execve
 	 * operation.
@@ -99,12 +93,12 @@ static int tomoyo_bprm_set_creds(struct linux_binprm *bprm)
 	 * tomoyo_find_next_domain().
 	 */
 	atomic_dec(&((struct tomoyo_domain_info *)
-		     bprm->cred->security)->users);
+		     lsm_get_cred(bprm->cred, &tomoyo_ops))->users);
 	/*
 	 * Tell tomoyo_bprm_check_security() is called for the first time of an
 	 * execve operation.
 	 */
-	bprm->cred->security = NULL;
+	lsm_set_cred(bprm->cred, NULL, &tomoyo_ops);
 	return 0;
 }
 
@@ -117,7 +111,8 @@ static int tomoyo_bprm_set_creds(struct linux_binprm *bprm)
  */
 static int tomoyo_bprm_check_security(struct linux_binprm *bprm)
 {
-	struct tomoyo_domain_info *domain = bprm->cred->security;
+	struct tomoyo_domain_info *domain =
+		lsm_get_cred(bprm->cred, &tomoyo_ops);
 
 	/*
 	 * Execute permission is checked against pathname passed to do_execve()
@@ -501,7 +496,7 @@ static int tomoyo_socket_sendmsg(struct socket *sock, struct msghdr *msg,
  * tomoyo_security_ops is a "struct security_operations" which is used for
  * registering TOMOYO.
  */
-static struct security_operations tomoyo_security_ops = {
+struct security_operations tomoyo_ops = {
 	.name                = "tomoyo",
 	.cred_alloc_blank    = tomoyo_cred_alloc_blank,
 	.cred_prepare        = tomoyo_cred_prepare,
@@ -543,16 +538,16 @@ struct srcu_struct tomoyo_ss;
  */
 static int __init tomoyo_init(void)
 {
+	int rc;
 	struct cred *cred = (struct cred *) current_cred();
 
-	if (!security_module_enable(&tomoyo_security_ops))
-		return 0;
 	/* register ourselves with the security framework */
-	if (register_security(&tomoyo_security_ops) ||
-	    init_srcu_struct(&tomoyo_ss))
-		panic("Failure registering TOMOYO Linux");
+	if (!security_module_enable(&tomoyo_ops))
+		return 0;
 	printk(KERN_INFO "TOMOYO Linux initialized\n");
-	cred->security = &tomoyo_kernel_domain;
+	rc = lsm_set_init_cred(cred, &tomoyo_kernel_domain, &tomoyo_ops);
+	if (rc)
+		panic("Failure allocating credential for TOMOYO Linux");
 	tomoyo_mm_init();
 	return 0;
 }

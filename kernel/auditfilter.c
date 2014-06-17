@@ -1061,6 +1061,7 @@ static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
 				  int res)
 {
 	struct audit_buffer *ab;
+	struct security_operations *sop;
 
 	if (!audit_enabled)
 		return;
@@ -1072,11 +1073,11 @@ static void audit_log_rule_change(uid_t loginuid, u32 sessionid, u32 sid,
 	if (sid) {
 		char *ctx = NULL;
 		u32 len;
-		if (security_secid_to_secctx(sid, &ctx, &len))
+		if (security_secid_to_secctx(sid, &ctx, &len, &sop))
 			audit_log_format(ab, " ssid=%u", sid);
 		else {
 			audit_log_format(ab, " subj=%s", ctx);
-			security_release_secctx(ctx, len);
+			security_release_secctx(ctx, len, sop);
 		}
 	}
 	audit_log_format(ab, " op=");
@@ -1245,7 +1246,7 @@ static int audit_filter_user_rules(struct netlink_skb_parms *cb,
 	for (i = 0; i < rule->field_count; i++) {
 		struct audit_field *f = &rule->fields[i];
 		int result = 0;
-		u32 sid;
+		struct secids sid;
 
 		switch (f->type) {
 		case AUDIT_PID:
@@ -1268,7 +1269,7 @@ static int audit_filter_user_rules(struct netlink_skb_parms *cb,
 		case AUDIT_SUBJ_CLR:
 			if (f->lsm_rule) {
 				security_task_getsecid(current, &sid);
-				result = security_audit_rule_match(sid,
+				result = security_audit_rule_match(&sid,
 								   f->type,
 								   f->op,
 								   f->lsm_rule,

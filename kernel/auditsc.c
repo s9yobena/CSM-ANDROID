@@ -60,6 +60,7 @@
 #include <linux/compiler.h>
 #include <asm/unistd.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <linux/list.h>
 #include <linux/tty.h>
 #include <linux/binfmts.h>
@@ -115,7 +116,7 @@ struct audit_names {
 	uid_t		uid;
 	gid_t		gid;
 	dev_t		rdev;
-	u32		osid;
+	struct secids		osid;
 	struct audit_cap_data fcap;
 	unsigned int	fcap_ver;
 	int		name_len;	/* number of name's characters to log */
@@ -151,7 +152,7 @@ struct audit_aux_data_pids {
 	uid_t			target_auid[AUDIT_AUX_PIDS];
 	uid_t			target_uid[AUDIT_AUX_PIDS];
 	unsigned int		target_sessionid[AUDIT_AUX_PIDS];
-	u32			target_sid[AUDIT_AUX_PIDS];
+	struct secids		target_sid[AUDIT_AUX_PIDS];
 	char 			target_comm[AUDIT_AUX_PIDS][TASK_COMM_LEN];
 	int			pid_count;
 };
@@ -216,7 +217,7 @@ struct audit_context {
 	uid_t		    target_auid;
 	uid_t		    target_uid;
 	unsigned int	    target_sessionid;
-	u32		    target_sid;
+	struct secids	    target_sid;
 	char		    target_comm[TASK_COMM_LEN];
 
 	struct audit_tree_refs *trees, *first_trees;
@@ -233,7 +234,7 @@ struct audit_context {
 			uid_t			uid;
 			gid_t			gid;
 			umode_t			mode;
-			u32			osid;
+			struct secids		osid;
 			int			has_perm;
 			uid_t			perm_uid;
 			gid_t			perm_gid;
@@ -608,7 +609,7 @@ static int audit_filter_rules(struct task_struct *tsk,
 {
 	const struct cred *cred;
 	int i, need_sid = 1;
-	u32 sid;
+	struct secids sid;
 
 	cred = rcu_dereference_check(tsk->cred, tsk == current || task_creation);
 
@@ -766,7 +767,8 @@ static int audit_filter_rules(struct task_struct *tsk,
 					security_task_getsecid(tsk, &sid);
 					need_sid = 0;
 				}
-				result = security_audit_rule_match(sid, f->type,
+				result = security_audit_rule_match(&sid,
+								  f->type,
 				                                  f->op,
 				                                  f->lsm_rule,
 				                                  ctx);
@@ -783,13 +785,17 @@ static int audit_filter_rules(struct task_struct *tsk,
 				/* Find files that match */
 				if (name) {
 					result = security_audit_rule_match(
-					           name->osid, f->type, f->op,
-					           f->lsm_rule, ctx);
+							&name->osid, f->type,
+							f->op, f->lsm_rule,
+							ctx);
 				} else if (ctx) {
 					list_for_each_entry(n, &ctx->names_list, list) {
-						if (security_audit_rule_match(n->osid, f->type,
-									      f->op, f->lsm_rule,
-									      ctx)) {
+						if (security_audit_rule_match(
+								&n->osid,
+								f->type,
+								f->op,
+								f->lsm_rule,
+								ctx)) {
 							++result;
 							break;
 						}
@@ -798,7 +804,7 @@ static int audit_filter_rules(struct task_struct *tsk,
 				/* Find ipc objects that match */
 				if (!ctx || ctx->type != AUDIT_IPC)
 					break;
-				if (security_audit_rule_match(ctx->ipc.osid,
+				if (security_audit_rule_match(&ctx->ipc.osid,
 							      f->type, f->op,
 							      f->lsm_rule, ctx))
 					++result;
@@ -1129,13 +1135,14 @@ void audit_log_task_context(struct audit_buffer *ab)
 	char *ctx = NULL;
 	unsigned len;
 	int error;
-	u32 sid;
+	struct secids sid;
+	struct security_operations *sop = NULL;
 
 	security_task_getsecid(current, &sid);
-	if (!sid)
+	if (!lsm_zero_secid(&sid))
 		return;
 
-	error = security_secid_to_secctx(sid, &ctx, &len);
+	error = security_secid_to_secctx(&sid, &ctx, &len, &sop);
 	if (error) {
 		if (error != -EINVAL)
 			goto error_path;
@@ -1143,7 +1150,7 @@ void audit_log_task_context(struct audit_buffer *ab)
 	}
 
 	audit_log_format(ab, " subj=%s", ctx);
-	security_release_secctx(ctx, len);
+	security_release_secctx(ctx, len, sop);
 	return;
 
 error_path:
@@ -1184,12 +1191,13 @@ static void audit_log_task_info(struct audit_buffer *ab, struct task_struct *tsk
 
 static int audit_log_pid_context(struct audit_context *context, pid_t pid,
 				 uid_t auid, uid_t uid, unsigned int sessionid,
-				 u32 sid, char *comm)
+				 struct secids *sid, char *comm)
 {
 	struct audit_buffer *ab;
 	char *ctx = NULL;
 	u32 len;
 	int rc = 0;
+	struct security_operations *sop = NULL;
 
 	ab = audit_log_start(context, GFP_KERNEL, AUDIT_OBJ_PID);
 	if (!ab)
@@ -1197,12 +1205,12 @@ static int audit_log_pid_context(struct audit_context *context, pid_t pid,
 
 	audit_log_format(ab, "opid=%d oauid=%d ouid=%d oses=%d", pid, auid,
 			 uid, sessionid);
-	if (security_secid_to_secctx(sid, &ctx, &len)) {
+	if (security_secid_to_secctx(sid, &ctx, &len, &sop)) {
 		audit_log_format(ab, " obj=(none)");
 		rc = 1;
 	} else {
 		audit_log_format(ab, " obj=%s", ctx);
-		security_release_secctx(ctx, len);
+		security_release_secctx(ctx, len, sop);
 	}
 	audit_log_format(ab, " ocomm=");
 	audit_log_untrustedstring(ab, comm);
@@ -1443,19 +1451,20 @@ static void show_special(struct audit_context *context, int *call_panic)
 				context->socketcall.args[i]);
 		break; }
 	case AUDIT_IPC: {
-		u32 osid = context->ipc.osid;
+		struct secids *osid = &context->ipc.osid;
 
 		audit_log_format(ab, "ouid=%u ogid=%u mode=%#ho",
 			 context->ipc.uid, context->ipc.gid, context->ipc.mode);
-		if (osid) {
+		if (!lsm_zero_secid(osid)) {
 			char *ctx = NULL;
 			u32 len;
-			if (security_secid_to_secctx(osid, &ctx, &len)) {
-				audit_log_format(ab, " osid=%u", osid);
+			struct security_operations *sop = NULL;
+			if (security_secid_to_secctx(osid, &ctx, &len, &sop)) {
+				audit_log_format(ab, " osc=%u", 0);
 				*call_panic = 1;
 			} else {
 				audit_log_format(ab, " obj=%s", ctx);
-				security_release_secctx(ctx, len);
+				security_release_secctx(ctx, len, sop);
 			}
 		}
 		if (context->ipc.has_perm) {
@@ -1524,6 +1533,8 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
 			   int record_num, int *call_panic)
 {
 	struct audit_buffer *ab;
+	struct security_operations *sop;
+
 	ab = audit_log_start(context, GFP_KERNEL, AUDIT_PATH);
 	if (!ab)
 		return; /* audit_panic has been called */
@@ -1564,16 +1575,16 @@ static void audit_log_name(struct audit_context *context, struct audit_names *n,
 				 MAJOR(n->rdev),
 				 MINOR(n->rdev));
 	}
-	if (n->osid != 0) {
+	if (!lsm_zero_secid(&n->osid)) {
 		char *ctx = NULL;
 		u32 len;
 		if (security_secid_to_secctx(
-			n->osid, &ctx, &len)) {
-			audit_log_format(ab, " osid=%u", n->osid);
+					     &n->osid, &ctx, &len, &sop)) {
+			audit_log_format(ab, " osid=%u", 0);
 			*call_panic = 2;
 		} else {
 			audit_log_format(ab, " obj=%s", ctx);
-			security_release_secctx(ctx, len);
+			security_release_secctx(ctx, len, sop);
 		}
 	}
 
@@ -1710,7 +1721,7 @@ static void audit_log_exit(struct audit_context *context, struct task_struct *ts
 						  axs->target_auid[i],
 						  axs->target_uid[i],
 						  axs->target_sessionid[i],
-						  axs->target_sid[i],
+						  &axs->target_sid[i],
 						  axs->target_comm[i]))
 				call_panic = 1;
 	}
@@ -1719,7 +1730,7 @@ static void audit_log_exit(struct audit_context *context, struct task_struct *ts
 	    audit_log_pid_context(context, context->target_pid,
 				  context->target_auid, context->target_uid,
 				  context->target_sessionid,
-				  context->target_sid, context->target_comm))
+				  &context->target_sid, context->target_comm))
 			call_panic = 1;
 
 	if (context->pwd.dentry && context->pwd.mnt) {
@@ -1907,7 +1918,7 @@ void __audit_syscall_exit(int success, long return_code)
 		context->aux = NULL;
 		context->aux_pids = NULL;
 		context->target_pid = 0;
-		context->target_sid = 0;
+		lsm_init_secid(&context->target_sid, 0, -1);
 		context->sockaddr_len = 0;
 		context->type = 0;
 		context->fds[0] = -1;

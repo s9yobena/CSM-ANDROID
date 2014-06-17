@@ -12,6 +12,7 @@
 #include <linux/seq_file.h>
 #include <linux/percpu.h>
 #include <linux/security.h>
+#include <linux/lsm.h>
 #include <net/net_namespace.h>
 
 #include <linux/netfilter.h>
@@ -98,14 +99,17 @@ static int ct_show_secctx(struct seq_file *s, const struct nf_conn *ct)
 	int ret;
 	u32 len;
 	char *secctx;
+	struct secids secid;
+	struct security_operations *sop = lsm_secmark_ops();
 
-	ret = security_secid_to_secctx(ct->secmark, &secctx, &len);
+	lsm_init_secid(&secid, ct->secmark, lsm_secmark_order());
+	ret = security_secid_to_secctx(&secid, &secctx, &len, &sop);
 	if (ret)
 		return 0;
 
 	ret = seq_printf(s, "secctx=%s ", secctx);
 
-	security_release_secctx(secctx, len);
+	security_release_secctx(secctx, len, sop);
 	return ret;
 }
 #else

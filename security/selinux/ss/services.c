@@ -48,6 +48,7 @@
 #include <linux/in.h>
 #include <linux/sched.h>
 #include <linux/audit.h>
+#include <linux/lsm.h>
 #include <linux/mutex.h>
 #include <linux/selinux.h>
 #include <linux/flex_array.h>
@@ -3105,7 +3106,7 @@ int security_netlbl_secattr_to_sid(struct netlbl_lsm_secattr *secattr,
 	if (secattr->flags & NETLBL_SECATTR_CACHE)
 		*sid = *(u32 *)secattr->cache->data;
 	else if (secattr->flags & NETLBL_SECATTR_SECID)
-		*sid = secattr->attr.secid;
+		*sid = lsm_get_secid(&secattr->attr.secid, lsm_netlbl_order());
 	else if (secattr->flags & NETLBL_SECATTR_MLS_LVL) {
 		rc = -EIDRM;
 		ctx = sidtab_search(&sidtab, SECINITSID_NETMSG);
@@ -3180,7 +3181,7 @@ int security_netlbl_sid_to_secattr(u32 sid, struct netlbl_lsm_secattr *secattr)
 	if (secattr->domain == NULL)
 		goto out;
 
-	secattr->attr.secid = sid;
+	lsm_set_secid(&secattr->attr.secid, sid, lsm_netlbl_order());
 	secattr->flags |= NETLBL_SECATTR_DOMAIN_CPY | NETLBL_SECATTR_SECID;
 	mls_export_netlbl_lvl(ctx, secattr);
 	rc = mls_export_netlbl_cat(ctx, secattr);

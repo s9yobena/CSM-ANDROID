@@ -608,6 +608,47 @@ int netlbl_secattr_catmap_setrng(struct netlbl_lsm_secattr_catmap *catmap,
  */
 
 /**
+ * netlbl_lsm_register - Reserve the NetLabel subsystem for an LSM
+ * @lsm: the security module making the request
+ *
+ * Description:
+ * To avoid potential conflicting views between LSMs over
+ * what should go in the network label reserve the Netlabel
+ * mechanism for use by one LSM. netlbl_enabled will return
+ * false for all other LSMs.
+ *
+ */
+int netlbl_lsm_register(struct security_operations *lsm)
+{
+	if (lsm == NULL)
+		return -EINVAL;
+
+	if (lsm_netlbl_ops() == NULL)
+		netlbl_ops = lsm;
+	else if (lsm_netlbl_ops() != lsm)
+		return -EBUSY;
+
+	printk(KERN_INFO "NetLabel: Registered LSM \"%s\".\n", lsm->name);
+	return 0;
+}
+
+/**
+ * netlbl_lsm_owner - Report if the NetLabel subsystem is registered for an LSM
+ * @lsm: the security module making the request
+ *
+ * Description:
+ * Report whether the LSM passed is the LSM registered for NetLabel
+ *
+ * Returns 1 if this is the registered NetLabel LSM, 0 otherwise
+ */
+int netlbl_lsm_owner(struct security_operations *lsm)
+{
+	if (lsm_netlbl_ops() == lsm)
+		return 1;
+	return 0;
+}
+
+/**
  * netlbl_enabled - Determine if the NetLabel subsystem is enabled
  *
  * Description:
@@ -619,8 +660,12 @@ int netlbl_secattr_catmap_setrng(struct netlbl_lsm_secattr_catmap *catmap,
  * be disabled.
  *
  */
-int netlbl_enabled(void)
+int netlbl_enabled(struct security_operations *lsm)
 {
+	if (lsm_netlbl_ops() == NULL)
+		return 0;
+	if (lsm_netlbl_ops() != lsm)
+		return 0;
 	/* At some point we probably want to expose this mechanism to the user
 	 * as well so that admins can toggle NetLabel regardless of the
 	 * configuration */

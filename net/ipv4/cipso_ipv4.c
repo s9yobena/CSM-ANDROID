@@ -45,6 +45,7 @@
 #include <linux/jhash.h>
 #include <linux/audit.h>
 #include <linux/slab.h>
+#include <linux/lsm.h>
 #include <net/ip.h>
 #include <net/icmp.h>
 #include <net/tcp.h>
@@ -1569,7 +1570,8 @@ static int cipso_v4_gentag_loc(const struct cipso_v4_doi *doi_def,
 
 	buffer[0] = CIPSO_V4_TAG_LOCAL;
 	buffer[1] = CIPSO_V4_TAG_LOC_BLEN;
-	*(u32 *)&buffer[2] = secattr->attr.secid;
+	*(u32 *)&buffer[2] = lsm_get_secid(&secattr->attr.secid,
+						lsm_netlbl_order());
 
 	return CIPSO_V4_TAG_LOC_BLEN;
 }
@@ -1589,7 +1591,10 @@ static int cipso_v4_parsetag_loc(const struct cipso_v4_doi *doi_def,
 				 const unsigned char *tag,
 				 struct netlbl_lsm_secattr *secattr)
 {
-	secattr->attr.secid = *(u32 *)&tag[2];
+	u32 secid;
+
+	secid = *(u32 *)&tag[2];
+	lsm_init_secid(&secattr->attr.secid, secid, lsm_netlbl_order());
 	secattr->flags |= NETLBL_SECATTR_SECID;
 
 	return 0;
